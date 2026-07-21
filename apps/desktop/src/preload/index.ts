@@ -40,6 +40,12 @@ contextBridge.exposeInMainWorld('harness', {
   listKnowledge: (projectId: string, status: string) => ipcRenderer.invoke('knowledge:list', projectId, status),
   reviewKnowledge: (candidateId: number, decision: string) => ipcRenderer.invoke('knowledge:review', candidateId, decision),
 
+  // ── Execution ──
+  startExecution: (projectId: string, nodeId: string, role: string) => ipcRenderer.invoke('execution:start', projectId, nodeId, role),
+  pollExecution: (sessionId: string) => ipcRenderer.invoke('execution:poll', sessionId),
+  respondExecution: (sessionId: string, decision: any) => ipcRenderer.invoke('execution:respond', sessionId, decision),
+  cancelExecution: (sessionId: string) => ipcRenderer.invoke('execution:cancel', sessionId),
+
   // ── Events ──
   onRuntimeEvent: (channel: string, callback: (...args: unknown[]) => void) => {
     if (VALID_EVENT_CHANNELS.includes(channel as typeof VALID_EVENT_CHANNELS[number])) {

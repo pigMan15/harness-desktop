@@ -131,6 +131,16 @@ app.whenReady().then(() => {
   ipcMain.handle('knowledge:review', async (_e, candidateId: number, decision: string) =>
     runtimeCall('knowledge.review', { candidateId, decision }))
 
+  // ── IPC: Execution ──
+  ipcMain.handle('execution:start', async (_e, projectId: string, nodeId: string, role: string) =>
+    runtimeCall('execution.start', { projectId, nodeId, role }))
+  ipcMain.handle('execution:poll', async (_e, sessionId: string) =>
+    runtimeCall('execution.poll', { sessionId }))
+  ipcMain.handle('execution:respond', async (_e, sessionId: string, decision: any) =>
+    runtimeCall('execution.respond', { sessionId, decision }))
+  ipcMain.handle('execution:cancel', async (_e, sessionId: string) =>
+    runtimeCall('execution.cancel', { sessionId }))
+
   // Start the Runtime supervisor (handles Python subprocess lifecycle)
   supervisor = new RuntimeSupervisor()
   supervisor.on('status', (healthy) => {

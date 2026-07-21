@@ -82,6 +82,14 @@ async def _dispatch(method: str, params: dict) -> Any:
         return _knowledge_list(params.get("status", "draft"))
     if method == "knowledge.review":
         return _knowledge_review(params.get("candidateId", 0), params.get("decision", "accepted"))
+    if method == "execution.start":
+        return _execution_start(params.get("nodeId", "DEVELOPMENT"), params.get("role", "developer"))
+    if method == "execution.poll":
+        return _execution_poll(params.get("sessionId", ""))
+    if method == "execution.respond":
+        return _execution_respond(params.get("sessionId", ""), params.get("decision", {}))
+    if method == "execution.cancel":
+        return _execution_cancel(params.get("sessionId", ""))
     raise ValueError(f"Unknown method: {method}")
 
 
@@ -238,3 +246,73 @@ def _get_phase_dir():
     except Exception:
         pass
     return None
+
+
+# ── Fake Executor session store ──
+
+_exec_sessions: dict[str, dict] = {}
+
+
+def _execution_start(node_id: str, role: str) -> dict:
+    import uuid
+    sid = f"fake-{uuid.uuid4().hex[:8]}"
+    # Generate scripted events for a realistic-looking execution
+    events = [
+        {"type": "output", "sequence": 1, "content": f"# {role} executing node {node_id}"},
+        {"type": "output", "sequence": 2, "content": "Analyzing project structure..."},
+        {"type": "tool_call", "sequence": 3, "tool": "read_file", "params": {"path": ".harness/state.json"}},
+        {"type": "output", "sequence": 4, "content": "Found state.json with run_id=..."},
+        {"type": "approval_required", "sequence": 5, "message": f"Execute task for {node_id}?", "category": "command"},
+        # After approval, more events
+        {"type": "output", "sequence": 6, "content": "Task accepted. Modifying files..."},
+        {"type": "tool_call", "sequence": 7, "tool": "write_file", "params": {"path": "output.txt", "content": "done"}},
+        {"type": "output", "sequence": 8, "content": "Execution complete."},
+        {"type": "exited", "sequence": 9, "code": 0},
+    ]
+    _exec_sessions[sid] = {"events": events, "cursor": 0, "pending_approval": False, "cancelled": False}
+    return {"sessionId": sid}
+
+
+def _execution_poll(session_id: str) -> list[dict]:
+    sess = _exec_sessions.get(session_id)
+    if not sess:
+        return [{"type": "error", "sequence": 0, "content": "Session not found"}]
+    if sess["cancelled"]:
+        return [{"type": "exited", "sequence": 99, "code": -1, "content": "Cancelled"}]
+    # Return next batch of events
+    events = sess["events"]
+    cursor = sess["cursor"]
+    batch = []
+    while cursor < len(events):
+        ev = events[cursor]
+        # Stop before approval (wait for user response)
+        if ev["type"] == "approval_required" and cursor > sess.get("last_approval_cursor", -1):
+            if not sess.get("approval_responded"):
+                sess["pending_approval"] = True
+                sess["last_approval_cursor"] = cursor
+                batch.append(ev)
+                sess["cursor"] = cursor + 1
+                return batch
+        batch.append(ev)
+        cursor += 1
+        if ev["type"] == "exited":
+            break
+    sess["cursor"] = cursor
+    return batch
+
+
+def _execution_respond(session_id: str, decision: dict) -> dict:
+    sess = _exec_sessions.get(session_id)
+    if not sess:
+        return {"error": "Session not found"}
+    sess["approval_responded"] = True
+    sess["pending_approval"] = False
+    return {"status": "ok"}
+
+
+def _execution_cancel(session_id: str) -> dict:
+    sess = _exec_sessions.get(session_id)
+    if not sess:
+        return {"error": "Session not found"}
+    sess["cancelled"] = True
+    return {"status": "cancelled"}
