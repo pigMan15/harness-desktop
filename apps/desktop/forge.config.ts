@@ -7,7 +7,6 @@ const config: ForgeConfig = {
     asar: true,
     name: 'Harness Desktop',
     appVersion: '0.0.0',
-    icon: 'resources/icon',
     extraResource: [
       'resources/harness-runtime.exe',
     ],
@@ -16,7 +15,6 @@ const config: ForgeConfig = {
   makers: [
     new MakerSquirrel({
       name: 'harness-desktop',
-      setupIcon: 'resources/icon.ico',
       loadingGif: undefined,
       noMsi: true,
     }),

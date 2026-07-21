@@ -3,6 +3,7 @@
   "private": true,
   "version": "0.0.0",
   "description": "Harness Desktop — Electron shell",
+  "author": "Harness Desktop",
   "main": ".vite/build/main.js",
   "scripts": {
     "dev": "electron-forge dev",
