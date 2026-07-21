@@ -7,6 +7,8 @@ export function ExecutionPage(): React.ReactElement {
   const [running, setRunning] = useState(false)
   const [sessionId, setSessionId] = useState('')
   const [pendingApproval, setPendingApproval] = useState<LogEntry | null>(null)
+  const [secondConfirm, setSecondConfirm] = useState(false)
+  const DANGEROUS = new Set(['deploy','delete','dangerous_git'])
   const [msg, setMsg] = useState('')
   const logEnd = useRef<HTMLDivElement>(null)
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
@@ -46,8 +48,16 @@ export function ExecutionPage(): React.ReactElement {
     }, 500)
   }
 
+  function handleRespond(decision: string) {
+    const cat = pendingApproval?.category || pendingApproval?.data?.category || ''
+    if (decision === 'allow_once' && DANGEROUS.has(cat) && !secondConfirm) {
+      setSecondConfirm(true); return
+    }
+    respond(decision)
+  }
+
   async function respond(decision: string) {
-    try { await window.harness!.respondExecution(sessionId, { decision }); setPendingApproval(null) } catch { /* */ }
+    try { await window.harness!.respondExecution(sessionId, { decision }); setPendingApproval(null); setSecondConfirm(false) } catch { /* */ }
   }
 
   async function cancel() {
@@ -87,12 +97,16 @@ export function ExecutionPage(): React.ReactElement {
       </div>
 
       {pendingApproval && (
-        <div style={{ padding: 12, margin: '8px 0', background: '#fff3cd', border: '1px solid #ffc107', borderRadius: 8 }}>
-          <strong>Approval Required</strong>
+        <div style={{ padding: 12, margin: '8px 0', background: secondConfirm ? '#f8d7da' : '#fff3cd', border: `1px solid ${secondConfirm ? '#dc3545' : '#ffc107'}`, borderRadius: 8 }}>
+          <strong>{secondConfirm ? '⚠ SECOND CONFIRMATION REQUIRED' : 'Approval Required'}</strong>
+          {secondConfirm && <p style={{ margin: 4, fontSize: 12, color: '#721c24' }}>This is a dangerous operation ({pendingApproval.category || pendingApproval.data?.category || 'unknown'}). Confirm to proceed.</p>}
           <p style={{ margin: '4px 0' }}>{pendingApproval.message || pendingApproval.content || JSON.stringify(pendingApproval)}</p>
           <div style={{ display: 'flex', gap: 8 }}>
-            <button onClick={() => respond('allow_once')} style={{ padding: '6px 16px', background: '#4caf50', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer' }}>Allow Once</button>
-            <button onClick={() => respond('deny')} style={{ padding: '6px 16px', background: '#f44336', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer' }}>Deny</button>
+            <button onClick={() => handleRespond('allow_once')} style={{ padding: '6px 16px', background: secondConfirm ? '#dc3545' : '#4caf50', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer' }}>
+              {secondConfirm ? 'Yes, Allow' : 'Allow Once'}
+            </button>
+            <button onClick={() => { respond('deny'); setSecondConfirm(false) }} style={{ padding: '6px 16px', background: '#6c757d', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer' }}>Deny</button>
+            {secondConfirm && <button onClick={() => setSecondConfirm(false)} style={{ padding: '6px 16px', background: '#fff', border: '1px solid #ddd', borderRadius: 4, cursor: 'pointer' }}>Cancel</button>}
           </div>
         </div>
       )}
