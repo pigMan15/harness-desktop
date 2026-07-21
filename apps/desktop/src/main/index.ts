@@ -141,6 +141,10 @@ app.whenReady().then(() => {
   ipcMain.handle('execution:cancel', async (_e, sessionId: string) =>
     runtimeCall('execution.cancel', { sessionId }))
 
+  // ── IPC: Recovery ──
+  ipcMain.handle('recovery:scan', async (_e, projectId: string) => runtimeCall('recovery.scan', { projectId }))
+  ipcMain.handle('recovery:cleanup', async (_e, projectId: string) => runtimeCall('recovery.cleanup', { projectId }))
+
   // Start the Runtime supervisor (handles Python subprocess lifecycle)
   supervisor = new RuntimeSupervisor()
   supervisor.on('status', (healthy) => {

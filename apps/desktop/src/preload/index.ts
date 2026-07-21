@@ -46,6 +46,10 @@ contextBridge.exposeInMainWorld('harness', {
   respondExecution: (sessionId: string, decision: any) => ipcRenderer.invoke('execution:respond', sessionId, decision),
   cancelExecution: (sessionId: string) => ipcRenderer.invoke('execution:cancel', sessionId),
 
+  // ── Recovery ──
+  scanRecovery: (projectId: string) => ipcRenderer.invoke('recovery:scan', projectId),
+  cleanupRecovery: (projectId: string) => ipcRenderer.invoke('recovery:cleanup', projectId),
+
   // ── Events ──
   onRuntimeEvent: (channel: string, callback: (...args: unknown[]) => void) => {
     if (VALID_EVENT_CHANNELS.includes(channel as typeof VALID_EVENT_CHANNELS[number])) {

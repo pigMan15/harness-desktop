@@ -9,6 +9,8 @@ const NAV = [
   { to: '/gates', label: 'Gates', icon: '🛡' },
   { to: '/artifacts', label: 'Artifacts', icon: '📄' },
   { to: '/knowledge', label: 'Knowledge', icon: '🧠' },
+  { to: '/execution', label: 'Execution', icon: '⚡' },
+  { to: '/recovery', label: 'Recovery', icon: '🔄' },
 ]
 
 export function Sidebar(): React.ReactElement {

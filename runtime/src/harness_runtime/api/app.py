@@ -90,6 +90,10 @@ async def _dispatch(method: str, params: dict) -> Any:
         return _execution_respond(params.get("sessionId", ""), params.get("decision", {}))
     if method == "execution.cancel":
         return _execution_cancel(params.get("sessionId", ""))
+    if method == "recovery.scan":
+        return _recovery_scan()
+    if method == "recovery.cleanup":
+        return _recovery_cleanup()
     raise ValueError(f"Unknown method: {method}")
 
 
@@ -316,3 +320,13 @@ def _execution_cancel(session_id: str) -> dict:
         return {"error": "Session not found"}
     sess["cancelled"] = True
     return {"status": "cancelled"}
+
+
+def _recovery_scan() -> list[dict]:
+    from ..recovery.service import scan_sessions
+    return scan_sessions()
+
+
+def _recovery_cleanup() -> list[str]:
+    from ..recovery.service import cleanup_temp_files
+    return cleanup_temp_files(PROJECT_ROOT)
