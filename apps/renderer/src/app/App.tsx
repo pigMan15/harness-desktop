@@ -5,6 +5,8 @@ import { ProjectsPage } from '../features/projects/ProjectsPage'
 import { RunsPage } from '../features/runs/RunsPage'
 import { WorkflowPage } from '../features/workflow/WorkflowPage'
 import { GatesPage } from '../features/gates/GatesPage'
+import { ArtifactsPage } from '../features/artifacts/ArtifactsPage'
+import { KnowledgePage } from '../features/knowledge/KnowledgePage'
 
 declare global {
   interface Window {
@@ -98,6 +100,8 @@ export function App(): React.ReactElement {
             <Route path="/runs" element={<RunsPage />} />
             <Route path="/workflow" element={<WorkflowPage />} />
             <Route path="/gates" element={<GatesPage />} />
+            <Route path="/artifacts" element={<ArtifactsPage />} />
+            <Route path="/knowledge" element={<KnowledgePage />} />
           </Routes>
         </main>
       </div>

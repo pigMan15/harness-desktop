@@ -117,6 +117,19 @@ app.whenReady().then(() => {
 
   // ── IPC: Gates ──
   ipcMain.handle('gate:list', async (_e, projectId: string) => runtimeCall('gate.list', { projectId }))
+  ipcMain.handle('gate:evaluate', async (_e, gateId: string, status: string) =>
+    runtimeCall('gate.evaluate', { gateId, status }))
+
+  // ── IPC: Artifacts ──
+  ipcMain.handle('artifact:list', async (_e, projectId: string) => runtimeCall('artifact.list', { projectId }))
+  ipcMain.handle('artifact:read', async (_e, projectId: string, filename: string) =>
+    runtimeCall('artifact.read', { projectId, filename }))
+
+  // ── IPC: Knowledge ──
+  ipcMain.handle('knowledge:list', async (_e, projectId: string, status: string) =>
+    runtimeCall('knowledge.list', { projectId, status }))
+  ipcMain.handle('knowledge:review', async (_e, candidateId: number, decision: string) =>
+    runtimeCall('knowledge.review', { candidateId, decision }))
 
   // Start the Runtime supervisor (handles Python subprocess lifecycle)
   supervisor = new RuntimeSupervisor()

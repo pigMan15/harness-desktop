@@ -30,6 +30,15 @@ contextBridge.exposeInMainWorld('harness', {
 
   // ── Gates ──
   listGates: (projectId: string) => ipcRenderer.invoke('gate:list', projectId),
+  evaluateGate: (gateId: string, status: string) => ipcRenderer.invoke('gate:evaluate', gateId, status),
+
+  // ── Artifacts ──
+  listArtifacts: (projectId: string) => ipcRenderer.invoke('artifact:list', projectId),
+  readArtifact: (projectId: string, filename: string) => ipcRenderer.invoke('artifact:read', projectId, filename),
+
+  // ── Knowledge ──
+  listKnowledge: (projectId: string, status: string) => ipcRenderer.invoke('knowledge:list', projectId, status),
+  reviewKnowledge: (candidateId: number, decision: string) => ipcRenderer.invoke('knowledge:review', candidateId, decision),
 
   // ── Events ──
   onRuntimeEvent: (channel: string, callback: (...args: unknown[]) => void) => {

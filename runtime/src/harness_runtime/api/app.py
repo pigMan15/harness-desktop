@@ -72,6 +72,16 @@ async def _dispatch(method: str, params: dict) -> Any:
         return _workflow_compile(params.get("intent", "FEATURE"), params.get("risk", "MEDIUM"))
     if method == "gate.list":
         return _gate_list()
+    if method == "gate.evaluate":
+        return _gate_evaluate(params.get("gateId", ""), params.get("status", "NOT_RUN"))
+    if method == "artifact.list":
+        return _artifact_list()
+    if method == "artifact.read":
+        return _artifact_read(params.get("filename", ""))
+    if method == "knowledge.list":
+        return _knowledge_list(params.get("status", "draft"))
+    if method == "knowledge.review":
+        return _knowledge_review(params.get("candidateId", 0), params.get("decision", "accepted"))
     raise ValueError(f"Unknown method: {method}")
 
 
@@ -182,3 +192,49 @@ def _workflow_compile(intent: str, risk: str) -> dict:
 def _gate_list() -> dict:
     state = json.loads((PROJECT_ROOT / ".harness" / "state.json").read_text(encoding="utf-8"))
     return {"gates": state.get("gates", {})}
+
+
+def _gate_evaluate(gate_id: str, status: str) -> dict:
+    valid = {"PASS", "FAIL", "WAIVED", "BLOCKED", "NOT_REQUIRED", "NOT_RUN"}
+    if status not in valid:
+        return {"error": f"Invalid gate status: {status}"}
+    state_path = PROJECT_ROOT / ".harness" / "state.json"
+    state = json.loads(state_path.read_text(encoding="utf-8"))
+    state.setdefault("gates", {})[gate_id] = status
+    state_path.write_text(json.dumps(state, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    return {"status": status}
+
+
+def _artifact_list() -> list[dict]:
+    from ..artifacts.service import list_artifacts
+    phase_dir = _get_phase_dir()
+    return list_artifacts(phase_dir) if phase_dir else []
+
+
+def _artifact_read(filename: str) -> dict:
+    from ..artifacts.service import read_artifact
+    phase_dir = _get_phase_dir()
+    if not phase_dir:
+        return {"error": "No active run"}
+    return read_artifact(PROJECT_ROOT, phase_dir, filename)
+
+
+def _knowledge_list(status: str) -> list[dict]:
+    from ..knowledge.service import list_candidates
+    return list_candidates(status=status)
+
+
+def _knowledge_review(candidate_id: int, decision: str) -> dict:
+    from ..knowledge.service import review_candidate
+    return review_candidate(candidate_id, decision)
+
+
+def _get_phase_dir():
+    try:
+        state = json.loads((PROJECT_ROOT / ".harness" / "state.json").read_text(encoding="utf-8"))
+        pd = state.get("phase_dir", "")
+        if pd:
+            return PROJECT_ROOT / pd
+    except Exception:
+        pass
+    return None
