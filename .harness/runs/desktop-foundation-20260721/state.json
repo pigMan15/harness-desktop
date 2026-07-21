@@ -1,11 +1,11 @@
 {
   "schema_version": "1.0",
   "run_id": "desktop-foundation-20260721",
-  "status": "DEVELOPING",
+  "status": "DONE",
   "intent": "FEATURE",
   "risk": "HIGH",
-  "current_node": "DEVELOPMENT",
-  "next_role": "developer",
+  "current_node": "KNOWLEDGE_PROMOTION",
+  "next_role": "knowledge-keeper",
   "phase_dir": ".harness/phases/desktop-foundation-20260721",
   "required_nodes": [
     "INTAKE",
@@ -44,7 +44,16 @@
     "CHANGE_REQUEST",
     "BRANCH_CREATION",
     "WORKTREE_CREATION",
-    "CODING_DESIGN_CONFIRMATION"
+    "CODING_DESIGN_CONFIRMATION",
+    "DEVELOPMENT",
+    "COMPILE",
+    "UNIT_TEST",
+    "ATDD",
+    "EVIDENCE_CAPTURE",
+    "PRERELEASE_DEPLOYMENT",
+    "INTERFACE_TEST",
+    "ACCEPTANCE_REPORT",
+    "KNOWLEDGE_PROMOTION"
   ],
   "blocked_by": [],
   "artifacts": {
@@ -60,19 +69,28 @@
     "CHANGE_REQUEST": "08-change-request.md",
     "BRANCH_CREATION": "09-branch.md",
     "WORKTREE_CREATION": "10-worktree.md",
-    "CODING_DESIGN_CONFIRMATION": "10-coding-design.md"
+    "CODING_DESIGN_CONFIRMATION": "10-coding-design.md",
+    "DEVELOPMENT": "11-development.md",
+    "COMPILE": "12-compile.md",
+    "UNIT_TEST": "13-unit-test.md",
+    "ATDD": "14-atdd.md",
+    "EVIDENCE_CAPTURE": "15-evidence.json",
+    "PRERELEASE_DEPLOYMENT": "16-prerelease-deployment.md",
+    "INTERFACE_TEST": "17-interface-test.md",
+    "ACCEPTANCE_REPORT": "18-acceptance-report.md",
+    "KNOWLEDGE_PROMOTION": "19-knowledge-promotion.md"
   },
   "gates": {
     "G1_REQUIREMENTS": "PASS",
     "G2_DESIGN": "PASS",
-    "G3_COMPILE": "NOT_RUN",
-    "G4_UNIT_TEST": "NOT_RUN",
-    "G5_ATDD": "NOT_RUN",
-    "G6_EVIDENCE": "NOT_RUN",
-    "G7_PRERELEASE": "NOT_RUN",
-    "G8_ACCEPTANCE": "NOT_RUN"
+    "G3_COMPILE": "PASS",
+    "G4_UNIT_TEST": "PASS",
+    "G5_ATDD": "NOT_REQUIRED",
+    "G6_EVIDENCE": "PASS",
+    "G7_PRERELEASE": "NOT_REQUIRED",
+    "G8_ACCEPTANCE": "PASS"
   },
   "retry_counts": {},
-  "last_updated": "2026-07-21T14:32:00+00:00",
-  "notes": "CODING_DESIGN_CONFIRMATION 完成：用户确认实施顺序/TDD粒度/commit策略/build跳过。进入 DEVELOPMENT（developer），开始 Task 0.1 编码。"
+  "last_updated": "2026-07-21T15:18:35+00:00",
+  "notes": "RUN DONE。22/22 节点完成。门禁: G1=PASS G2=PASS G3=PASS G4=PASS G5=NOT_REQUIRED G6=PASS G7=NOT_REQUIRED G8=PASS。35 Python+TS 测试通过。2 豁免（Electron deps 环境限制）。5 剩余风险。5 知识候选待人工 review。"
 }
