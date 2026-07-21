@@ -40,10 +40,14 @@ function createWindow(): void {
     mainWindow.loadFile(rendererPath)
   }
 
-  // Open DevTools in development (comment out for release)
-  if (!app.isPackaged) {
-    mainWindow.webContents.openDevTools()
-  }
+  // Capture renderer console for diagnostics
+  mainWindow.webContents.on('console-message', (_event, level, message) => {
+    const prefix = ['[R-VERBOSE]','[R-INFO]','[R-WARN]','[R-ERROR]'][level] || '[R-LOG]'
+    console.log(`${prefix} ${message}`)
+  })
+  // Log page load success/failure
+  mainWindow.webContents.on('did-finish-load', () => console.log('[Main] Renderer loaded successfully'))
+  mainWindow.webContents.on('did-fail-load', (_e, code, desc) => console.log('[Main] Renderer FAILED:', code, desc))
 
   mainWindow.on('closed', () => {
     mainWindow = null
