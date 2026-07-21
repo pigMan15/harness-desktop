@@ -1,27 +1,20 @@
 import React, { useState } from 'react'
 
 const GATE_NAMES: Record<string, string> = {
-  G1_REQUIREMENTS: 'Requirements',
-  G2_DESIGN: 'Design',
-  G3_COMPILE: 'Compile',
-  G4_UNIT_TEST: 'Unit Test',
-  G5_ATDD: 'ATDD',
-  G6_EVIDENCE: 'Evidence',
-  G7_PRERELEASE: 'Prerelease',
-  G8_ACCEPTANCE: 'Acceptance',
+  G1_REQUIREMENTS: 'Requirements', G2_DESIGN: 'Design', G3_COMPILE: 'Compile',
+  G4_UNIT_TEST: 'Unit Test', G5_ATDD: 'ATDD', G6_EVIDENCE: 'Evidence',
+  G7_PRERELEASE: 'Prerelease', G8_ACCEPTANCE: 'Acceptance',
 }
 
 const STATUS_COLORS: Record<string, { bg: string; color: string }> = {
-  PASS: { bg: '#d4edda', color: '#155724' },
-  FAIL: { bg: '#f8d7da', color: '#721c24' },
-  BLOCKED: { bg: '#f8d7da', color: '#721c24' },
-  NOT_RUN: { bg: '#e2e3e5', color: '#383d41' },
-  NOT_REQUIRED: { bg: '#e2e3e5', color: '#6c757d' },
-  WAIVED: { bg: '#fff3cd', color: '#856404' },
+  PASS: { bg: '#d4edda', color: '#155724' }, FAIL: { bg: '#f8d7da', color: '#721c24' },
+  BLOCKED: { bg: '#f8d7da', color: '#721c24' }, NOT_RUN: { bg: '#e2e3e5', color: '#383d41' },
+  NOT_REQUIRED: { bg: '#e2e3e5', color: '#6c757d' }, WAIVED: { bg: '#fff3cd', color: '#856404' },
 }
 
 export function GatesPage(): React.ReactElement {
   const [gates, setGates] = useState<Record<string, string>>({})
+  const [evaluating, setEvaluating] = useState(false)
 
   async function loadGates() {
     try {
@@ -32,10 +25,21 @@ export function GatesPage(): React.ReactElement {
 
   React.useEffect(() => { loadGates() }, [])
 
+  const passCount = Object.values(gates).filter(s => s === 'PASS').length
+  const failCount = Object.values(gates).filter(s => s === 'FAIL' || s === 'BLOCKED').length
+
   return (
     <div style={{ padding: 24 }}>
       <h2>Quality Gates</h2>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 12, marginTop: 16 }}>
+      <div style={{ display: 'flex', gap: 16, margin: '12px 0' }}>
+        <span style={{ padding: '4px 12px', background: '#d4edda', borderRadius: 4 }}>PASS: {passCount}</span>
+        <span style={{ padding: '4px 12px', background: '#f8d7da', borderRadius: 4 }}>FAIL: {failCount}</span>
+        <button onClick={() => { setEvaluating(true); loadGates().finally(() => setEvaluating(false)) }}
+          style={{ padding: '4px 12px', cursor: 'pointer' }} disabled={evaluating}>
+          {evaluating ? 'Evaluating...' : 'Refresh'}
+        </button>
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 12, marginTop: 16 }}>
         {Object.entries(GATE_NAMES).map(([id, name]) => {
           const status = gates[id] || 'NOT_RUN'
           const c = STATUS_COLORS[status] || STATUS_COLORS.NOT_RUN
