@@ -33,9 +33,15 @@ function createWindow(): void {
   if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
     mainWindow.loadURL(MAIN_WINDOW_VITE_DEV_SERVER_URL)
   } else {
-    mainWindow.loadFile(
-      path.join(__dirname, '..', '..', 'renderer', '.vite', 'renderer', MAIN_WINDOW_VITE_NAME, 'index.html')
-    )
+    // Production: renderer is at ../renderer/main_window/index.html relative to build output
+    const rendererPath = path.join(__dirname, '..', 'renderer', MAIN_WINDOW_VITE_NAME, 'index.html')
+    console.log('[Main] Loading renderer from:', rendererPath)
+    mainWindow.loadFile(rendererPath)
+  }
+
+  // Open DevTools in development (comment out for release)
+  if (!app.isPackaged) {
+    mainWindow.webContents.openDevTools()
   }
 
   mainWindow.on('closed', () => {
