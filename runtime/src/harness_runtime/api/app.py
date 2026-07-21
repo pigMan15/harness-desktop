@@ -76,6 +76,14 @@ async def _dispatch(method: str, params: dict) -> Any:
 
 
 def _project_list() -> list[dict]:
+    from ..projects.service import list_projects
+    try:
+        projects = list_projects()
+        if projects:
+            return projects
+    except Exception:
+        pass
+    # Fallback: return current directory if it has .harness
     root = PROJECT_ROOT
     harness = root / ".harness"
     if not harness.is_dir():
