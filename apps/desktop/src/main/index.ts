@@ -54,18 +54,26 @@ app.whenReady().then(() => {
 
   // IPC handler: health check (Renderer → Main → Runtime)
   ipcMain.handle('runtime:health', async () => {
-    if (!supervisor) return { status: 'unavailable' }
+    if (!supervisor || !supervisor.port) return { status: 'starting' }
     try {
-      const resp = await fetch(`http://127.0.0.1:${supervisor!.port}/health`, {
+      const url = `http://127.0.0.1:${supervisor.port}/health`
+      console.log('[Main] Health check:', url)
+      const resp = await fetch(url, {
         headers: {
-          Authorization: `Bearer ${supervisor!.token}`,
+          Authorization: `Bearer ${supervisor.token}`,
           'X-Harness-Desktop-Version': '0.0.0',
         },
       })
-      if (resp.ok) return await resp.json()
-      return { status: 'unavailable' }
-    } catch {
-      return { status: 'unavailable' }
+      if (resp.ok) {
+        const data = await resp.json()
+        console.log('[Main] Health OK:', JSON.stringify(data))
+        return data
+      }
+      console.log('[Main] Health failed:', resp.status)
+      return { status: 'unavailable', error: `HTTP ${resp.status}` }
+    } catch (err: any) {
+      console.log('[Main] Health error:', err.message)
+      return { status: 'unavailable', error: err.message }
     }
   })
 

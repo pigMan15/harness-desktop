@@ -30,26 +30,36 @@ export function App(): React.ReactElement {
   const checkHealth = useCallback(async () => {
     if (!window.harness) {
       setStatus('unavailable')
-      setErrorMessage('Preload API not available — running outside Electron?')
+      setErrorMessage('Preload API not available')
       return
     }
-    try {
-      const result = await window.harness.health()
-      // Runtime returns: { status, runtime_version, protocol_version, pid }
-      if (result.status === 'healthy') {
-        setStatus('healthy')
-        setVersionInfo({
-          runtime: result.runtime_version,
-          protocol: result.protocol_version,
-        })
-        setErrorMessage(null)
-      } else {
-        setStatus('unavailable')
+    // Retry up to 10 times (Runtime may still be starting)
+    for (let i = 0; i < 10; i++) {
+      try {
+        const result = await window.harness.health()
+        if (result.status === 'healthy') {
+          setStatus('healthy')
+          setVersionInfo({
+            runtime: result.runtime_version,
+            protocol: result.protocol_version,
+          })
+          setErrorMessage(null)
+          return
+        }
+        if (result.status === 'starting') {
+          setStatus('connecting')
+          setErrorMessage('Runtime starting...')
+        } else {
+          setErrorMessage(result.error || 'Runtime not ready')
+        }
+      } catch {
+        setErrorMessage('Runtime unreachable')
       }
-    } catch {
-      setStatus('unavailable')
-      setErrorMessage('Failed to reach Runtime')
+      // Wait before retry
+      await new Promise((r) => setTimeout(r, 1000))
     }
+    setStatus('unavailable')
+    setErrorMessage('Runtime did not start within 10s')
   }, [])
 
   useEffect(() => {
