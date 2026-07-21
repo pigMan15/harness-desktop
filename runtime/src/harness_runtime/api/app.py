@@ -104,7 +104,8 @@ def _project_list() -> list[dict]:
 
 def _project_import(path: str) -> dict:
     from ..projects.service import import_project
-    return import_project(path)
+    actual_path = path if path and path != '.' else str(PROJECT_ROOT)
+    return import_project(actual_path)
 
 
 def _project_validate(path: str) -> dict:

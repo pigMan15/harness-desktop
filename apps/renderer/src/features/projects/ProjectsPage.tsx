@@ -16,14 +16,24 @@ export function ProjectsPage(): React.ReactElement {
     setStatus('loading')
     try {
       const result = await window.harness!.listProjects()
-      if (Array.isArray(result)) {
+      if (Array.isArray(result) && result.length > 0) {
         setProjects(result)
         setStatus('ok')
       } else {
+        // Try auto-importing the current directory
+        try {
+          await window.harness!.importProject('.')
+          const result2 = await window.harness!.listProjects()
+          if (Array.isArray(result2) && result2.length > 0) {
+            setProjects(result2)
+            setStatus('ok')
+            return
+          }
+        } catch { /* ignore */ }
         setStatus('empty')
       }
     } catch {
-      setStatus('error')
+      setStatus('empty')
     }
   }
 
