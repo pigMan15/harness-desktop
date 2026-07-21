@@ -1,0 +1,35 @@
+{
+  "run_id": "desktop-release-20260722",
+  "intent": "FEATURE",
+  "risk": "HIGH",
+  "changed_files": [
+    "persistence/audit.py",
+    "api/idempotency.py",
+    "recovery/*",
+    "knowledge/*",
+    "CHANGELOG.md"
+  ],
+  "commands": [
+    {
+      "command": "py -3 -m pytest runtime/tests -q",
+      "exit": 0,
+      "result": "176 passed"
+    }
+  ],
+  "gates": {
+    "G1": "PASS",
+    "G2": "PASS",
+    "G3": "PASS",
+    "G4": "PASS",
+    "G5": "NOT_REQUIRED",
+    "G6": "PASS",
+    "G7": "NOT_REQUIRED",
+    "G8": "PASS"
+  },
+  "artifacts": {},
+  "waivers": [],
+  "residual_risks": [
+    "Windows packaging needs Electron+Squirrel env",
+    "E2E needs Playwright+Electron env"
+  ]
+}
