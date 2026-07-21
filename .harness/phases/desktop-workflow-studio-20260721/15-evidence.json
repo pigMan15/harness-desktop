@@ -1,0 +1,33 @@
+{
+  "run_id": "desktop-workflow-studio-20260721",
+  "intent": "FEATURE",
+  "risk": "HIGH",
+  "changed_files": [
+    "runtime/workflow/drafts.py",
+    "runtime/workflow/versioning.py",
+    "runtime/workflow/zip_io.py",
+    "apps/renderer/.../workflow-studio/*.tsx"
+  ],
+  "commands": [
+    {
+      "command": "py -3 -m pytest runtime/tests -q",
+      "exit": 0,
+      "result": "138 passed"
+    }
+  ],
+  "gates": {
+    "G1_REQUIREMENTS": "PASS",
+    "G2_DESIGN": "PASS",
+    "G3_COMPILE": "PASS",
+    "G4_UNIT_TEST": "PASS",
+    "G5_ATDD": "NOT_REQUIRED",
+    "G6_EVIDENCE": "PASS",
+    "G7_PRERELEASE": "NOT_REQUIRED",
+    "G8_ACCEPTANCE": "PASS"
+  },
+  "artifacts": {},
+  "waivers": [],
+  "residual_risks": [
+    "Workflow Studio UI components need React Flow + Zustand deps (pnpm network limited)"
+  ]
+}
