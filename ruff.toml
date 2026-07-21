@@ -1,0 +1,13 @@
+# Ruff configuration for Harness Desktop Runtime
+# See: https://docs.astral.sh/ruff/configuration/
+
+target-version = "py311"
+line-length = 100
+
+[lint]
+select = ["E", "F", "I", "N", "W", "UP"]
+ignore = []
+
+[format]
+quote-style = "double"
+indent-style = "space"

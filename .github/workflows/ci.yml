@@ -1,0 +1,68 @@
+name: CI
+
+on:
+  push:
+    branches: [main, 'codex/**']
+  pull_request:
+    branches: [main]
+
+jobs:
+  ci:
+    name: Build & Test
+    runs-on: windows-latest
+
+    strategy:
+      matrix:
+        python-version: ['3.12']
+        node-version: ['20']
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: latest
+
+      - name: Setup Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: pnpm
+
+      - name: Setup Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install dependencies
+        shell: bash
+        run: |
+          pnpm install
+          python -m pip install -e "runtime[dev]"
+
+      - name: Format check (Ruff)
+        shell: bash
+        run: python -m ruff format --check runtime/
+
+      - name: Lint
+        shell: bash
+        run: |
+          python -m ruff check runtime/
+          pnpm lint
+
+      - name: Type check
+        shell: bash
+        run: pnpm typecheck
+
+      - name: Python tests
+        shell: bash
+        run: python -m pytest runtime/tests -q --cov=runtime/src --cov-report=term
+
+      - name: TypeScript tests
+        shell: bash
+        run: pnpm test
+
+      - name: Build
+        shell: bash
+        run: pnpm build
