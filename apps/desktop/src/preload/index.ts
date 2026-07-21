@@ -1,59 +1,28 @@
-/**
- * Preload script — typed business API for Renderer.
- *
- * Architecture §8.1/§14: only exposes window.harness via contextBridge.
- * No exec, readFile, writeFile, require, or process exposure.
- */
-
 import { contextBridge, ipcRenderer } from 'electron'
-
-const VALID_EVENT_CHANNELS = ['runtime:status', 'runtime:error'] as const
+const CH = ['runtime:status','runtime:error'] as const
 
 contextBridge.exposeInMainWorld('harness', {
-  // ── Runtime ──
   health: () => ipcRenderer.invoke('runtime:health'),
-
-  // ── Projects ──
   listProjects: () => ipcRenderer.invoke('project:list'),
-  importProject: (path: string) => ipcRenderer.invoke('project:import', path),
-  validateProject: (path: string) => ipcRenderer.invoke('project:validate', path),
-
-  // ── Runs ──
-  listRuns: (projectId: string) => ipcRenderer.invoke('run:list', projectId),
-  createRun: (projectId: string, intent: string, risk: string, runId: string) =>
-    ipcRenderer.invoke('run:create', projectId, intent, risk, runId),
-
-  // ── Workflow ──
-  getWorkflow: (projectId: string) => ipcRenderer.invoke('workflow:get', projectId),
-  compileWorkflow: (projectId: string, intent: string, risk: string) =>
-    ipcRenderer.invoke('workflow:compile', projectId, intent, risk),
-
-  // ── Gates ──
-  listGates: (projectId: string) => ipcRenderer.invoke('gate:list', projectId),
-  evaluateGate: (gateId: string, status: string) => ipcRenderer.invoke('gate:evaluate', gateId, status),
-
-  // ── Artifacts ──
-  listArtifacts: (projectId: string) => ipcRenderer.invoke('artifact:list', projectId),
-  readArtifact: (projectId: string, filename: string) => ipcRenderer.invoke('artifact:read', projectId, filename),
-
-  // ── Knowledge ──
-  listKnowledge: (projectId: string, status: string) => ipcRenderer.invoke('knowledge:list', projectId, status),
-  reviewKnowledge: (candidateId: number, decision: string) => ipcRenderer.invoke('knowledge:review', candidateId, decision),
-
-  // ── Execution ──
-  startExecution: (projectId: string, nodeId: string, role: string) => ipcRenderer.invoke('execution:start', projectId, nodeId, role),
-  pollExecution: (sessionId: string) => ipcRenderer.invoke('execution:poll', sessionId),
-  respondExecution: (sessionId: string, decision: any) => ipcRenderer.invoke('execution:respond', sessionId, decision),
-  cancelExecution: (sessionId: string) => ipcRenderer.invoke('execution:cancel', sessionId),
-
-  // ── Recovery ──
-  scanRecovery: (projectId: string) => ipcRenderer.invoke('recovery:scan', projectId),
-  cleanupRecovery: (projectId: string) => ipcRenderer.invoke('recovery:cleanup', projectId),
-
-  // ── Events ──
-  onRuntimeEvent: (channel: string, callback: (...args: unknown[]) => void) => {
-    if (VALID_EVENT_CHANNELS.includes(channel as typeof VALID_EVENT_CHANNELS[number])) {
-      ipcRenderer.on(channel, (_event, ...args) => callback(...args))
-    }
-  },
+  importProject: (p: string) => ipcRenderer.invoke('project:import', p),
+  validateProject: (p: string) => ipcRenderer.invoke('project:validate', p),
+  listRuns: (p: string) => ipcRenderer.invoke('run:list', p),
+  createRun: (p: string,i: string,r: string,id: string) => ipcRenderer.invoke('run:create',p,i,r,id),
+  getWorkflow: (p: string) => ipcRenderer.invoke('workflow:get', p),
+  compileWorkflow: (p: string,i: string,r: string) => ipcRenderer.invoke('workflow:compile',p,i,r),
+  diffWorkflow: (p: string,y: string) => ipcRenderer.invoke('workflow:diff',p,y),
+  applyWorkflow: (p: string,y: string,h: string) => ipcRenderer.invoke('workflow:apply',p,y,h),
+  listGates: (p: string) => ipcRenderer.invoke('gate:list', p),
+  evaluateGate: (g: string,s: string) => ipcRenderer.invoke('gate:evaluate',g,s),
+  listArtifacts: (p: string) => ipcRenderer.invoke('artifact:list', p),
+  readArtifact: (p: string,f: string) => ipcRenderer.invoke('artifact:read',p,f),
+  listKnowledge: (p: string,s: string) => ipcRenderer.invoke('knowledge:list',p,s),
+  reviewKnowledge: (id: number,d: string) => ipcRenderer.invoke('knowledge:review',id,d),
+  startExecution: (p: string,n: string,r: string) => ipcRenderer.invoke('execution:start',p,n,r),
+  pollExecution: (s: string) => ipcRenderer.invoke('execution:poll',s),
+  respondExecution: (s: string,d: any) => ipcRenderer.invoke('execution:respond',s,d),
+  cancelExecution: (s: string) => ipcRenderer.invoke('execution:cancel',s),
+  scanRecovery: (p: string) => ipcRenderer.invoke('recovery:scan',p),
+  cleanupRecovery: (p: string) => ipcRenderer.invoke('recovery:cleanup',p),
+  onRuntimeEvent: (ch: string,cb: (...a: any[]) => void) => { if (CH.includes(ch as typeof CH[number])) ipcRenderer.on(ch,(_e,...a) => cb(...a)) },
 })

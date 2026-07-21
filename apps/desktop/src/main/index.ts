@@ -120,6 +120,10 @@ app.whenReady().then(() => {
   ipcMain.handle('workflow:get', async (_e, projectId: string) => runtimeCall('workflow.get', { projectId }))
   ipcMain.handle('workflow:compile', async (_e, projectId: string, intent: string, risk: string) =>
     runtimeCall('workflow.compile', { projectId, intent, risk }))
+  ipcMain.handle('workflow:diff', async (_e, projectId: string, yaml: string) =>
+    runtimeCall('workflow.diff', { projectId, yaml }))
+  ipcMain.handle('workflow:apply', async (_e, projectId: string, yaml: string, hash: string) =>
+    runtimeCall('workflow.apply', { projectId, yaml, hash }))
 
   // ── IPC: Gates ──
   ipcMain.handle('gate:list', async (_e, projectId: string) => runtimeCall('gate.list', { projectId }))

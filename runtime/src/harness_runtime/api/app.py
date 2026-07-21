@@ -77,6 +77,10 @@ async def _dispatch(method: str, params: dict) -> Any:
         return _workflow_get()
     if method == "workflow.compile":
         return _workflow_compile(params.get("intent", "FEATURE"), params.get("risk", "MEDIUM"))
+    if method == "workflow.diff":
+        return _workflow_diff(params.get("yaml", ""))
+    if method == "workflow.apply":
+        return _workflow_apply(params.get("yaml", ""), params.get("hash", ""))
     if method == "gate.list":
         return _gate_list()
     if method == "gate.evaluate":
@@ -206,6 +210,18 @@ def _workflow_compile(intent: str, risk: str) -> dict:
     from ..workflow.compiler import simulate
     wf = load_workflow(PROJECT_ROOT)
     return simulate(wf, intent, risk)
+
+
+def _workflow_diff(new_yaml: str) -> dict:
+    from ..workflow.drafts import semantic_diff
+    wf_path = PROJECT_ROOT / ".harness" / "workflow.yaml"
+    old_yaml = wf_path.read_text(encoding="utf-8") if wf_path.is_file() else ""
+    return semantic_diff(old_yaml, new_yaml)
+
+
+def _workflow_apply(yaml: str, expected_hash: str) -> dict:
+    from ..workflow.drafts import apply_draft
+    return apply_draft(PROJECT_ROOT, yaml, expected_hash if expected_hash else None)
 
 
 def _gate_list() -> dict:
