@@ -1,25 +1,29 @@
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 
 export function KnowledgePage(): React.ReactElement {
   const [candidates, setCandidates] = useState<any[]>([])
   const [tab, setTab] = useState<'draft' | 'accepted' | 'rejected'>('draft')
+  const [msg, setMsg] = useState('')
 
-  async function load() {
-    try {
-      const result = await window.harness!.listKnowledge('local', tab)
-      if (Array.isArray(result)) setCandidates(result)
-    } catch { /* */ }
-  }
-  React.useEffect(() => { load() }, [tab])
+  useEffect(() => {
+    setMsg('')
+    window.harness?.listKnowledge('local', tab).then(r => {
+      if (Array.isArray(r)) setCandidates(r)
+      else if (r?.error) setMsg(r.error)
+    }).catch((e: any) => setMsg(e.message))
+  }, [tab])
 
   async function review(id: number, decision: string) {
     try {
-      await window.harness!.reviewKnowledge(id, decision)
-      load()
-    } catch { /* */ }
+      const r = await window.harness!.reviewKnowledge(id, decision)
+      if (r && !r.error) {
+        setCandidates(prev => prev.filter(c => c.id !== id))
+        setMsg(`Candidate ${id} ${decision}`)
+      } else setMsg(r?.error || 'Failed')
+    } catch (e: any) { setMsg(e.message) }
   }
 
-  const TYPE_LABELS: Record<string, string> = { case: '经验', pitfall: '踩坑', decision: '决策', template: '模板', pattern: '模式' }
+  const TYPE_LABELS: Record<string, string> = { case: 'Case', pitfall: 'Pitfall', decision: 'Decision', template: 'Template', pattern: 'Pattern' }
 
   return (
     <div style={{ padding: 24 }}>
@@ -29,17 +33,17 @@ export function KnowledgePage(): React.ReactElement {
           <button key={t} onClick={() => setTab(t)} style={{
             padding: '6px 16px', cursor: 'pointer', border: 'none', borderRadius: 6,
             background: tab === t ? '#2196f3' : '#e0e0e0', color: tab === t ? '#fff' : '#333'
-          }}>{t === 'draft' ? '📝 Pending' : t === 'accepted' ? '✅ Accepted' : '❌ Rejected'}</button>
+          }}>{t === 'draft' ? 'Pending' : t === 'accepted' ? 'Accepted' : 'Rejected'}</button>
         ))}
       </div>
+      {msg && <p style={{ color: '#c62828', background: '#ffebee', padding: 8, borderRadius: 4 }}>{msg}</p>}
+      {candidates.length === 0 && !msg && <p style={{ color: '#999' }}>No {tab} knowledge candidates.</p>}
       {candidates.map((c: any) => (
         <div key={c.id} style={{ padding: 12, margin: '8px 0', background: '#fff', border: '1px solid #ddd', borderRadius: 8 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div>
               <strong>{c.title}</strong>
-              <span style={{ marginLeft: 8, fontSize: 12, background: '#e3f2fd', padding: '2px 8px', borderRadius: 4 }}>
-                {TYPE_LABELS[c.type] || c.type}
-              </span>
+              <span style={{ marginLeft: 8, fontSize: 12, background: '#e3f2fd', padding: '2px 8px', borderRadius: 4 }}>{TYPE_LABELS[c.type] || c.type}</span>
             </div>
             {tab === 'draft' && (
               <div style={{ display: 'flex', gap: 6 }}>
@@ -49,10 +53,8 @@ export function KnowledgePage(): React.ReactElement {
             )}
           </div>
           <p style={{ fontSize: 13, color: '#666', margin: '8px 0 0 0' }}>{c.summary}</p>
-          <div style={{ fontSize: 11, color: '#999', marginTop: 4 }}>Source: {c.source}</div>
         </div>
       ))}
-      {candidates.length === 0 && <p style={{ color: '#999' }}>No {tab} knowledge candidates.</p>}
     </div>
   )
 }

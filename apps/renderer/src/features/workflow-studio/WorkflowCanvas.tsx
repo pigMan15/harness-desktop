@@ -1,11 +1,9 @@
 /**
  * Workflow Canvas — React Flow-based visual workflow editor.
- *
- * Displays nodes as a linear chain. Supports drag-to-reorder.
- * System minimum nodes (from SYSTEM_MINIMUM_RULES) show lock icon.
+ * Displays nodes as a linear chain derived from the Zustand draft store.
  */
-import React, { useCallback, useMemo } from 'react'
-import ReactFlow, { Background, Controls, Edge, Node, useEdgesState, useNodesState } from 'reactflow'
+import React, { useMemo, useCallback } from 'react'
+import ReactFlow, { Background, Controls, Node, Edge, useReactFlow } from 'reactflow'
 import 'reactflow/dist/style.css'
 import { useWorkflowDraft } from './useWorkflowDraft'
 
@@ -17,43 +15,33 @@ const SYSTEM_NODES = new Set([
   'KNOWLEDGE_PROMOTION',
 ])
 
-function toFlowNodes(nodes: Array<{ id: string; role: string }>): Node[] {
-  return nodes.map((n, i) => ({
-    id: n.id,
-    position: { x: 50, y: i * 80 + 20 },
-    data: {
-      label: `${n.id}`,
-      role: n.role,
-      locked: SYSTEM_NODES.has(n.id),
-    },
-    type: 'default',
-  }))
-}
-
 export function WorkflowCanvas(): React.ReactElement {
   const { nodes, reorderNode } = useWorkflowDraft()
 
-  const flowNodes = useMemo(() => toFlowNodes(nodes), [nodes])
+  // Build React Flow nodes from Zustand store — controlled mode (no useNodesState)
+  const flowNodes: Node[] = useMemo(() =>
+    nodes.map((n, i) => ({
+      id: n.id,
+      position: { x: 50, y: i * 80 + 20 },
+      data: { label: `${n.id} (${n.role})`, locked: SYSTEM_NODES.has(n.id) },
+      type: 'default',
+    })),
+    [nodes],
+  )
 
-  const [rnodes, setNodes, onNodesChange] = useNodesState(flowNodes)
-  const [edges] = useEdgesState(
+  const flowEdges: Edge[] = useMemo(() =>
     flowNodes.slice(0, -1).map((_, i) => ({
       id: `e-${i}`,
       source: flowNodes[i].id,
       target: flowNodes[i + 1].id,
       type: 'smoothstep',
-      animated: false,
     })),
+    [flowNodes],
   )
-
-  // Sync external state changes into React Flow
-  React.useEffect(() => {
-    setNodes(toFlowNodes(nodes))
-  }, [nodes, setNodes])
 
   const onNodeDragStop = useCallback(
     (_event: React.MouseEvent, node: Node) => {
-      const fromIdx = nodes.findIndex((n) => n.id === node.id)
+      const fromIdx = nodes.findIndex(n => n.id === node.id)
       const toIdx = Math.round((node.position.y - 20) / 80)
       if (toIdx >= 0 && toIdx < nodes.length && toIdx !== fromIdx) {
         reorderNode(fromIdx, toIdx)
@@ -62,9 +50,23 @@ export function WorkflowCanvas(): React.ReactElement {
     [nodes, reorderNode],
   )
 
+  if (nodes.length === 0) {
+    return (
+      <div style={{ height: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#fafafa', border: '1px solid #ddd', borderRadius: 8, color: '#999' }}>
+        No nodes loaded. Click "Refresh" to load workflow data.
+      </div>
+    )
+  }
+
   return (
     <div style={{ height: 600, border: '1px solid #ddd', borderRadius: 8 }}>
-      <ReactFlow nodes={rnodes} edges={edges} onNodesChange={onNodesChange} onNodeDragStop={onNodeDragStop} fitView>
+      <ReactFlow
+        nodes={flowNodes}
+        edges={flowEdges}
+        onNodeDragStop={onNodeDragStop}
+        fitView
+        nodesDraggable
+      >
         <Background />
         <Controls />
       </ReactFlow>
