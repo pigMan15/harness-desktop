@@ -57,10 +57,22 @@ export function ExecutionPage(): React.ReactElement {
   }
 
   const TYPE_COLORS: Record<string, string> = { output: '#ccc', tool_call: '#64b5f6', approval_required: '#ffb74d', error: '#ef5350', exited: '#81c784' }
+  const APPROVAL_CATEGORIES = ['file','command','network','external','deploy','delete','permission','dangerous_git']
+  const FORBIDDEN = ['bash','sh','zsh','python','python3','py','cmd','powershell','pwsh']
 
   return (
     <div style={{ padding: 24 }}>
       <h2>Execution</h2>
+      <details style={{ marginBottom: 12, fontSize: 12 }}>
+        <summary style={{ cursor: 'pointer', color: '#666' }}>Approval Policy (8 categories)</summary>
+        <div style={{ padding: 8, background: '#fff', border: '1px solid #eee', borderRadius: 4, marginTop: 4 }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 8 }}>
+            {APPROVAL_CATEGORIES.map(c => <span key={c} style={{ padding:'2px 8px',background:'#e3f2fd',borderRadius:4 }}>{c}</span>)}
+          </div>
+          <p style={{ margin: 0, color: '#999' }}>Forbidden prefixes: {FORBIDDEN.join(', ')}</p>
+          <p style={{ margin: '4px 0 0 0', color: '#e65100' }}>Deploy/delete/force-push require second confirmation</p>
+        </div>
+      </details>
       <div style={{ display: 'flex', gap: 8, margin: '12px 0', alignItems: 'center' }}>
         <button onClick={startExecution} disabled={running}
           style={{ padding: '8px 16px', background: running ? '#ccc' : '#4caf50', color: '#fff', border: 'none', borderRadius: 6, cursor: running ? 'default' : 'pointer' }}>
