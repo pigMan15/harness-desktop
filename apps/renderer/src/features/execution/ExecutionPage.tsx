@@ -9,46 +9,40 @@ export function ExecutionPage(): React.ReactElement {
   const [pendingApproval, setPendingApproval] = useState<LogEntry | null>(null)
   const [msg, setMsg] = useState('')
   const logEnd = useRef<HTMLDivElement>(null)
-  const intervalRef = useRef<ReturnType<typeof setInterval>>()
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const runningRef = useRef(false)
 
   useEffect(() => { logEnd.current?.scrollIntoView({ behavior: 'smooth' }) }, [logs])
-
-  const addLog = useCallback((entry: LogEntry) => {
-    setLogs(prev => { if (prev.find(e => e.sequence === entry.sequence && e.type === entry.type)) return prev; return [...prev, entry] })
-  }, [])
+  useEffect(() => () => { if (intervalRef.current) clearInterval(intervalRef.current) }, [])
 
   async function startExecution() {
     setLogs([]); setRunning(true); setMsg('Starting...'); setPendingApproval(null)
     try {
       const r = await window.harness!.startExecution('local', 'DEVELOPMENT', 'developer')
-      if (r?.sessionId) {
-        setSessionId(r.sessionId); setMsg('')
-        pollEvents(r.sessionId)
-      } else { addLog({ type: 'error', sequence: 0, content: r?.error || 'Failed to start' }); setRunning(false); setMsg('') }
-    } catch (e: any) { addLog({ type: 'error', sequence: 0, content: e.message }); setRunning(false); setMsg('') }
+      if (r?.sessionId) { setSessionId(r.sessionId); setMsg(''); startPolling(r.sessionId) }
+      else { setRunning(false); setMsg(r?.error || 'Failed to start') }
+    } catch (e: any) { setRunning(false); setMsg(e.message) }
   }
 
-  function pollEvents(sid: string) {
-    let stopped = false
+  function startPolling(sid: string) {
+    if (intervalRef.current) clearInterval(intervalRef.current)
+    runningRef.current = true
     intervalRef.current = setInterval(async () => {
-      if (stopped) return
+      if (!runningRef.current) { if (intervalRef.current) clearInterval(intervalRef.current); return }
       try {
         const events = await window.harness!.pollExecution(sid)
         if (Array.isArray(events) && events.length > 0) {
-          for (const ev of events) {
-            if (ev.type === 'approval_required') setPendingApproval(ev)
-            if (ev.type === 'exited' || ev.type === 'error') {
-              setRunning(false); stopped = true
-              clearInterval(intervalRef.current)
-            }
-          }
           setLogs(prev => {
             const existing = new Set(prev.map(e => `${e.type}:${e.sequence}`))
             const newEvents = events.filter((e: any) => !existing.has(`${e.type}:${e.sequence}`))
+            for (const ev of newEvents) {
+              if (ev.type === 'approval_required') setPendingApproval(ev)
+              if (ev.type === 'exited' || ev.type === 'error') { setRunning(false); runningRef.current = false }
+            }
             return [...prev, ...newEvents]
           })
         }
-      } catch { /* network error during poll — keep trying */ }
+      } catch { /* keep polling */ }
     }, 500)
   }
 
@@ -57,10 +51,10 @@ export function ExecutionPage(): React.ReactElement {
   }
 
   async function cancel() {
-    try { await window.harness!.cancelExecution(sessionId); setRunning(false); clearInterval(intervalRef.current) } catch { /* */ }
+    runningRef.current = false; setRunning(false)
+    if (intervalRef.current) clearInterval(intervalRef.current)
+    try { await window.harness!.cancelExecution(sessionId) } catch { /* */ }
   }
-
-  useEffect(() => () => clearInterval(intervalRef.current), [])
 
   const TYPE_COLORS: Record<string, string> = { output: '#ccc', tool_call: '#64b5f6', approval_required: '#ffb74d', error: '#ef5350', exited: '#81c784' }
 

@@ -96,7 +96,13 @@ app.whenReady().then(() => {
   // ── IPC: Projects ──
   ipcMain.handle('project:list', async () => runtimeCall('project.list'))
   ipcMain.handle('project:import', async (_e, path: string) => {
-    const result = await dialog.showOpenDialog(mainWindow!, {
+    const win = mainWindow || BrowserWindow.getFocusedWindow() || BrowserWindow.getAllWindows()[0]
+    if (!win) return { error: 'No window available' }
+    // If path is provided and not a special trigger, import directly
+    if (path && path !== '__dialog__' && path !== '.') {
+      return runtimeCall('project.import', { path })
+    }
+    const result = await dialog.showOpenDialog(win, {
       title: 'Import .harness Project',
       properties: ['openDirectory'],
     })
