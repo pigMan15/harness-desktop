@@ -6,7 +6,8 @@
  * Architecture §14: contextIsolation=true, nodeIntegration=false, sandbox=true.
  */
 
-import { app, BrowserWindow, ipcMain } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain } from 'electron'
+import { execSync } from 'node:child_process'
 import path from 'node:path'
 import { RuntimeSupervisor } from './runtime-supervisor'
 
@@ -52,30 +53,60 @@ function createWindow(): void {
 app.whenReady().then(() => {
   createWindow()
 
-  // IPC handler: health check (Renderer → Main → Runtime)
+  // ── Runtime API helper ──
+  async function runtimeCall(method: string, params?: any): Promise<any> {
+    if (!supervisor || !supervisor.port) return { error: 'Runtime not started' }
+    const resp = await fetch(`http://127.0.0.1:${supervisor.port}/api`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${supervisor.token}`,
+        'X-Harness-Desktop-Version': '0.0.0',
+      },
+      body: JSON.stringify({ jsonrpc: '2.0', method, params, id: `req-${Date.now()}` }),
+    })
+    if (resp.ok) return await resp.json()
+    return { error: `HTTP ${resp.status}` }
+  }
+
+  // ── IPC: Health ──
   ipcMain.handle('runtime:health', async () => {
     if (!supervisor || !supervisor.port) return { status: 'starting' }
     try {
-      const url = `http://127.0.0.1:${supervisor.port}/health`
-      console.log('[Main] Health check:', url)
-      const resp = await fetch(url, {
-        headers: {
-          Authorization: `Bearer ${supervisor.token}`,
-          'X-Harness-Desktop-Version': '0.0.0',
-        },
+      const resp = await fetch(`http://127.0.0.1:${supervisor.port}/health`, {
+        headers: { Authorization: `Bearer ${supervisor.token}`, 'X-Harness-Desktop-Version': '0.0.0' },
       })
-      if (resp.ok) {
-        const data = await resp.json()
-        console.log('[Main] Health OK:', JSON.stringify(data))
-        return data
-      }
-      console.log('[Main] Health failed:', resp.status)
+      if (resp.ok) return await resp.json()
       return { status: 'unavailable', error: `HTTP ${resp.status}` }
     } catch (err: any) {
-      console.log('[Main] Health error:', err.message)
       return { status: 'unavailable', error: err.message }
     }
   })
+
+  // ── IPC: Projects ──
+  ipcMain.handle('project:list', async () => runtimeCall('project.list'))
+  ipcMain.handle('project:import', async (_e, path: string) => {
+    const result = await dialog.showOpenDialog(mainWindow!, {
+      title: 'Import .harness Project',
+      properties: ['openDirectory'],
+    })
+    if (result.canceled) return { error: 'cancelled' }
+    return runtimeCall('project.import', { path: result.filePaths[0] })
+  })
+  ipcMain.handle('project:validate', async (_e, path: string) => runtimeCall('project.validate', { path }))
+
+  // ── IPC: Runs ──
+  ipcMain.handle('run:list', async (_e, projectId: string) => runtimeCall('run.list', { projectId }))
+  ipcMain.handle('run:create', async (_e, projectId: string, intent: string, risk: string, runId: string) =>
+    runtimeCall('run.create', { projectId, intent, risk, runId }))
+
+  // ── IPC: Workflow ──
+  ipcMain.handle('workflow:get', async (_e, projectId: string) => runtimeCall('workflow.get', { projectId }))
+  ipcMain.handle('workflow:compile', async (_e, projectId: string, intent: string, risk: string) =>
+    runtimeCall('workflow.compile', { projectId, intent, risk }))
+
+  // ── IPC: Gates ──
+  ipcMain.handle('gate:list', async (_e, projectId: string) => runtimeCall('gate.list', { projectId }))
 
   // Start the Runtime supervisor (handles Python subprocess lifecycle)
   supervisor = new RuntimeSupervisor()
