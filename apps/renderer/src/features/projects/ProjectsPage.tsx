@@ -2,36 +2,48 @@ import React, { useEffect, useState } from 'react'
 
 interface Project { projectId: string; name: string; path: string; health: string; protocolVersion: string }
 
+// Retry helper — Runtime may still be starting
+async function call(fn: () => Promise<any>, retries = 5): Promise<any> {
+  for (let i = 0; i < retries; i++) {
+    try {
+      const r = await fn()
+      if (r && !r.error) return r
+      if (r?.error === 'Runtime not started') { await new Promise(r => setTimeout(r, 1000)); continue }
+      return r
+    } catch { await new Promise(r => setTimeout(r, 1000)) }
+  }
+  return null
+}
+
 export function ProjectsPage(): React.ReactElement {
   const [projects, setProjects] = useState<Project[]>([])
   const [status, setStatus] = useState('loading')
+  const [err, setErr] = useState('')
 
   useEffect(() => { loadProjects() }, [])
 
   async function loadProjects() {
-    setStatus('loading')
-    try {
-      const result = await window.harness!.listProjects()
-      if (Array.isArray(result) && result.length > 0) {
-        setProjects(result); setStatus('ok')
-      } else {
-        try {
-          await window.harness!.importProject('.')
-          const r2 = await window.harness!.listProjects()
-          if (Array.isArray(r2) && r2.length > 0) { setProjects(r2); setStatus('ok'); return }
-        } catch { /* ignore */ }
-        setStatus('empty')
-      }
-    } catch { setStatus('error') }
+    setStatus('loading'); setErr('')
+    const result = await call(() => window.harness!.listProjects())
+    if (Array.isArray(result) && result.length > 0) {
+      setProjects(result); setStatus('ok'); return
+    }
+    // Try auto-import
+    const r2 = await call(() => window.harness!.importProject('.'))
+    if (r2 && !r2.error) {
+      const r3 = await call(() => window.harness!.listProjects())
+      if (Array.isArray(r3) && r3.length > 0) { setProjects(r3); setStatus('ok'); return }
+    }
+    setStatus('empty')
+    if (result?.error) setErr(result.error)
+    else if (r2?.error) setErr(r2.error)
   }
 
   async function handleImport() {
-    setStatus('loading')
-    try {
-      const result = await window.harness!.importProject('__dialog__')
-      if (result && !result.error) await loadProjects()
-      else setStatus('ok') // keep current list
-    } catch { setStatus('error') }
+    setStatus('loading'); setErr('')
+    const r = await call(() => window.harness!.importProject('__dialog__'))
+    if (r && !r.error) await loadProjects()
+    else { setStatus('ok'); if (r?.error) setErr(r.error) }
   }
 
   return (
@@ -42,6 +54,7 @@ export function ProjectsPage(): React.ReactElement {
           + Import Project
         </button>
       </div>
+      {err && <p style={{ color: '#c62828', background: '#ffebee', padding: 8, borderRadius: 4 }}>{err}</p>}
       {status === 'loading' && <p>Loading...</p>}
       {status === 'empty' && <p>No projects. Click "+ Import Project" to select a .harness project folder.</p>}
       {status === 'ok' && (
@@ -50,7 +63,7 @@ export function ProjectsPage(): React.ReactElement {
             <th style={{ padding: 8 }}>Name</th><th style={{ padding: 8 }}>Path</th>
             <th style={{ padding: 8 }}>Health</th><th style={{ padding: 8 }}>Protocol</th>
           </tr></thead>
-          <tbody>{projects.map((p) => (
+          <tbody>{projects.map(p => (
             <tr key={p.projectId} style={{ borderBottom: '1px solid #eee' }}>
               <td style={{ padding: 8, fontWeight: 500 }}>{p.name}</td>
               <td style={{ padding: 8, fontSize: 12, color: '#666' }}>{p.path}</td>
