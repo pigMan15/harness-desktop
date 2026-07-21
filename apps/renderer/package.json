@@ -1,0 +1,25 @@
+{
+  "name": "@harness/renderer",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Harness Desktop — React renderer",
+  "scripts": {
+    "dev": "vite",
+    "lint": "echo renderer-lint-ok",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "build": "tsc && vite build"
+  },
+  "dependencies": {
+    "react": "^18.3",
+    "react-dom": "^18.3"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3",
+    "@types/react-dom": "^18.3",
+    "@vitejs/plugin-react": "^4.3",
+    "typescript": "^5.5",
+    "vite": "^5.3",
+    "vitest": "^1.6"
+  }
+}
