@@ -5,9 +5,22 @@ import { VitePlugin } from '@electron-forge/plugin-vite'
 const config: ForgeConfig = {
   packagerConfig: {
     asar: true,
+    name: 'Harness Desktop',
+    appVersion: '0.0.0',
+    icon: 'resources/icon',
+    extraResource: [
+      'resources/harness-runtime.exe',
+    ],
   },
   rebuildConfig: {},
-  makers: [new MakerSquirrel({})],
+  makers: [
+    new MakerSquirrel({
+      name: 'harness-desktop',
+      setupIcon: 'resources/icon.ico',
+      loadingGif: undefined,
+      noMsi: true,
+    }),
+  ],
   plugins: [
     new VitePlugin({
       build: [
