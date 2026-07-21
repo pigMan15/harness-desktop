@@ -1,0 +1,17 @@
+{
+  "name": "harness-desktop",
+  "private": true,
+  "description": "Harness Desktop — AI Coding workflow governance desktop application",
+  "scripts": {
+    "lint": "pnpm -r lint",
+    "typecheck": "pnpm -r typecheck",
+    "test": "vitest run --workspace=vitest.workspace.ts",
+    "test:e2e": "playwright test",
+    "build": "pnpm -r build",
+    "package": "pnpm --filter @harness/desktop package"
+  },
+  "engines": {
+    "node": ">=18",
+    "pnpm": ">=8"
+  }
+}
