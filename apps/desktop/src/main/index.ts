@@ -6,7 +6,7 @@
  * Architecture §14: contextIsolation=true, nodeIntegration=false, sandbox=true.
  */
 
-import { app, BrowserWindow } from 'electron'
+import { app, BrowserWindow, ipcMain } from 'electron'
 import path from 'node:path'
 import { RuntimeSupervisor } from './runtime-supervisor'
 
@@ -51,6 +51,23 @@ function createWindow(): void {
 
 app.whenReady().then(() => {
   createWindow()
+
+  // IPC handler: health check (Renderer → Main → Runtime)
+  ipcMain.handle('runtime:health', async () => {
+    if (!supervisor) return { status: 'unavailable' }
+    try {
+      const resp = await fetch(`http://127.0.0.1:${supervisor!.port}/health`, {
+        headers: {
+          Authorization: `Bearer ${supervisor!.token}`,
+          'X-Harness-Desktop-Version': '0.0.0',
+        },
+      })
+      if (resp.ok) return await resp.json()
+      return { status: 'unavailable' }
+    } catch {
+      return { status: 'unavailable' }
+    }
+  })
 
   // Start the Runtime supervisor (handles Python subprocess lifecycle)
   supervisor = new RuntimeSupervisor()

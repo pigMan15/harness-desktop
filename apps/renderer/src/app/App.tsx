@@ -35,11 +35,12 @@ export function App(): React.ReactElement {
     }
     try {
       const result = await window.harness.health()
-      if (result.healthy) {
+      // Runtime returns: { status, runtime_version, protocol_version, pid }
+      if (result.status === 'healthy') {
         setStatus('healthy')
         setVersionInfo({
-          runtime: result.runtimeVersion,
-          protocol: result.protocolVersion,
+          runtime: result.runtime_version,
+          protocol: result.protocol_version,
         })
         setErrorMessage(null)
       } else {

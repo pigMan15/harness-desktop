@@ -21,8 +21,8 @@ export interface RuntimeSupervisorEvents {
 
 export class RuntimeSupervisor extends EventEmitter {
   private process: ChildProcess | null = null
-  private token: string = ''
-  private port: number = 0
+  token: string = ''
+  port: number = 0
 
   /** Generate a one-time 64-char hex token for authentication. */
   private generateToken(): string {
