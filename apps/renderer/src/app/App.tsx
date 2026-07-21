@@ -22,6 +22,17 @@ declare global {
       getWorkflow: (projectId: string) => Promise<any>
       compileWorkflow: (projectId: string, intent: string, risk: string) => Promise<any>
       listGates: (projectId: string) => Promise<any>
+      evaluateGate: (gateId: string, status: string) => Promise<any>
+      listArtifacts: (projectId: string) => Promise<any>
+      readArtifact: (projectId: string, filename: string) => Promise<any>
+      listKnowledge: (projectId: string, status: string) => Promise<any>
+      reviewKnowledge: (candidateId: number, decision: string) => Promise<any>
+      startExecution: (projectId: string, nodeId: string, role: string) => Promise<any>
+      pollExecution: (sessionId: string) => Promise<any>
+      respondExecution: (sessionId: string, decision: any) => Promise<any>
+      cancelExecution: (sessionId: string) => Promise<any>
+      scanRecovery: (projectId: string) => Promise<any>
+      cleanupRecovery: (projectId: string) => Promise<any>
       onRuntimeEvent: (channel: string, cb: (...args: any[]) => void) => void
     }
   }

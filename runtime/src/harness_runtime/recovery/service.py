@@ -24,13 +24,9 @@ class RecoveryResult:
 
 
 def scan_sessions() -> list[dict]:
-    """Scan all executor sessions and determine recovery status.
-
-    Architecture §16 steps:
-    1. Query unfinished ExecutorSessions from SQLite
-    2. Probe whether the child process is still alive (pid check)
-    3. Recoverable → re-subscribe; orphan → offer terminate; lost → record
-    """
+    """Scan all executor sessions and determine recovery status."""
+    from ..persistence.database import init_db
+    init_db()
     db = get_db()
     sessions = db.execute(
         "SELECT * FROM executor_sessions WHERE status = 'active'"

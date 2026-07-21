@@ -21,6 +21,13 @@ app.add_middleware(
 
 PROJECT_ROOT = Path(os.environ.get("HARNESS_PROJECT_ROOT", os.getcwd()))
 
+# Initialize database on startup (idempotent)
+try:
+    from ..persistence.database import init_db
+    init_db()
+except Exception:
+    pass
+
 
 @app.get("/health")
 async def health(
