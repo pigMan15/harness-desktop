@@ -1,0 +1,68 @@
+{
+  "run_id": "desktop-state-machine-20260721",
+  "intent": "FEATURE",
+  "risk": "HIGH",
+  "changed_files": [
+    "runtime/src/harness_runtime/protocol/models.py",
+    "runtime/src/harness_runtime/protocol/loader.py",
+    "runtime/src/harness_runtime/protocol/validator.py",
+    "runtime/src/harness_runtime/persistence/database.py",
+    "runtime/src/harness_runtime/persistence/atomic_files.py",
+    "runtime/src/harness_runtime/persistence/project_lock.py",
+    "runtime/src/harness_runtime/persistence/state_store.py",
+    "runtime/src/harness_runtime/projects/service.py",
+    "runtime/src/harness_runtime/workflow/system_policy.py",
+    "runtime/src/harness_runtime/workflow/compiler.py",
+    "runtime/src/harness_runtime/workflow/dispatcher.py",
+    "runtime/src/harness_runtime/runs/identifiers.py",
+    "runtime/src/harness_runtime/runs/service.py",
+    "runtime/src/harness_runtime/gates/engine.py",
+    "runtime/src/harness_runtime/gates/permissions.py",
+    "runtime/src/harness_runtime/artifacts/service.py"
+  ],
+  "commands": [
+    {"command": "py -3 -c 'import harness_runtime.*' (16 modules)", "exit": 0, "result": "All imported OK"},
+    {"command": "py -3 -m pytest runtime/tests -q", "exit": 0, "result": "119 passed in 1.05s"}
+  ],
+  "gates": {
+    "G1_REQUIREMENTS": "PASS",
+    "G2_DESIGN": "PASS",
+    "G3_COMPILE": "PASS",
+    "G4_UNIT_TEST": "PASS",
+    "G5_ATDD": "NOT_REQUIRED",
+    "G6_EVIDENCE": "PASS",
+    "G7_PRERELEASE": "NOT_REQUIRED",
+    "G8_ACCEPTANCE": "PASS"
+  },
+  "artifacts": {
+    "INTAKE": "00-intake.md",
+    "CONTEXT_PACK": "00-context-pack.md",
+    "REQUIREMENT_REVIEW": "01-requirement-review.md",
+    "REQUIREMENT_CONFIRMATION": "02-requirement-confirmation.md",
+    "SOLUTION_DESIGN": "03-solution-design.md",
+    "SOLUTION_CONFIRMATION": "04-solution-confirmation.md",
+    "PRE_MORTEM": "05-pre-mortem.md",
+    "IMPLEMENTATION_PLAN": "06-implementation-plan.md",
+    "ACCEPTANCE_CONFIRMATION": "07-acceptance-confirmation.md",
+    "CHANGE_REQUEST": "08-change-request.md",
+    "BRANCH_CREATION": "09-branch.md",
+    "WORKTREE_CREATION": "10-worktree.md",
+    "CODING_DESIGN_CONFIRMATION": "10-coding-design.md",
+    "DEVELOPMENT": "11-development.md",
+    "COMPILE": "12-compile.md",
+    "UNIT_TEST": "13-unit-test.md",
+    "ATDD": "14-atdd.md",
+    "EVIDENCE_CAPTURE": "15-evidence.json",
+    "PRERELEASE_DEPLOYMENT": "16-prerelease-deployment.md",
+    "INTERFACE_TEST": "17-interface-test.md",
+    "ACCEPTANCE_REPORT": "18-acceptance-report.md",
+    "KNOWLEDGE_PROMOTION": "19-knowledge-promotion.md"
+  },
+  "waivers": [],
+  "residual_risks": [
+    "Workflow Compiler 仅在 valid fixture 上测试 FEATURE/HIGH/BUG_FIX/QUERY/DEPLOYMENT 路由；自定义 workflow 的编译检查待 Workflow Studio (Phase 4) 实际编辑验证",
+    "Project Lock 的跨进程锁测试仅在单进程内模拟（同一测试函数内两个 ProjectLock）；真实多进程并发需集成测试",
+    "Artifact Service 的文件监听（watchdog）仅定义接口，watcher 实现和 debounce 逻辑待后续 Task 补充",
+    "SQLite schema migration 机制（备份+向前恢复）尚未实现；当前仅 CREATE TABLE IF NOT EXISTS"
+  ]
+}
