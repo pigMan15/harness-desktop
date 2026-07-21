@@ -42,3 +42,4 @@ apps/renderer/.vite/
 package-lock.json
 apps/desktop/package-lock.json
 apps/renderer/package-lock.json
+harness-desktop.db*
