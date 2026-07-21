@@ -19,7 +19,7 @@ app.add_middleware(
     allow_headers=["Authorization", "Content-Type", "X-Harness-Desktop-Version"],
 )
 
-PROJECT_ROOT = Path(os.getcwd())
+PROJECT_ROOT = Path(os.environ.get("HARNESS_PROJECT_ROOT", os.getcwd()))
 
 
 @app.get("/health")

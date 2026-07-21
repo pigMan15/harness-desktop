@@ -45,8 +45,25 @@ export class RuntimeSupervisor extends EventEmitter {
     this.token = this.generateToken()
     const runtime = this.findRuntime()
 
+    // Find project root: check cwd, app path, and parent directories for .harness
+    let projectRoot = process.cwd()
+    let check = projectRoot
+    for (let i = 0; i < 5; i++) {
+      if (fs.existsSync(path.join(check, '.harness'))) {
+        projectRoot = check
+        break
+      }
+      const parent = path.dirname(check)
+      if (parent === check) break
+      check = parent
+    }
+
     this.process = spawn(runtime.cmd, runtime.args, {
-      env: { ...process.env, HARNESS_RUNTIME_TOKEN: this.token },
+      env: {
+        ...process.env,
+        HARNESS_RUNTIME_TOKEN: this.token,
+        HARNESS_PROJECT_ROOT: projectRoot,
+      },
       stdio: ['ignore', 'pipe', 'pipe'],
     })
 
