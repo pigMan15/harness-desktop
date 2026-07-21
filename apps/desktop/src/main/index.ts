@@ -56,17 +56,27 @@ app.whenReady().then(() => {
   // ── Runtime API helper ──
   async function runtimeCall(method: string, params?: any): Promise<any> {
     if (!supervisor || !supervisor.port) return { error: 'Runtime not started' }
-    const resp = await fetch(`http://127.0.0.1:${supervisor.port}/api`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${supervisor.token}`,
-        'X-Harness-Desktop-Version': '0.0.0',
-      },
-      body: JSON.stringify({ jsonrpc: '2.0', method, params, id: `req-${Date.now()}` }),
-    })
-    if (resp.ok) return await resp.json()
-    return { error: `HTTP ${resp.status}` }
+    try {
+      const resp = await fetch(`http://127.0.0.1:${supervisor.port}/api`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${supervisor.token}`,
+          'X-Harness-Desktop-Version': '0.0.0',
+        },
+        body: JSON.stringify({ jsonrpc: '2.0', method, params, id: `req-${Date.now()}` }),
+      })
+      if (resp.ok) {
+        const envelope = await resp.json()
+        // Unwrap JSON-RPC envelope: return result or error
+        if (envelope.result !== undefined) return envelope.result
+        if (envelope.error) return { error: envelope.error.message || envelope.error }
+        return envelope
+      }
+      return { error: `HTTP ${resp.status}` }
+    } catch (err: any) {
+      return { error: err.message }
+    }
   }
 
   // ── IPC: Health ──

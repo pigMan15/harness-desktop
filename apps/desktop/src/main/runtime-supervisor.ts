@@ -45,18 +45,20 @@ export class RuntimeSupervisor extends EventEmitter {
     this.token = this.generateToken()
     const runtime = this.findRuntime()
 
-    // Find project root: check cwd, app path, and parent directories for .harness
+    // Find project root: search up from cwd for .harness directory
     let projectRoot = process.cwd()
-    let check = projectRoot
-    for (let i = 0; i < 5; i++) {
+    let check = path.resolve(projectRoot)
+    for (let i = 0; i < 10; i++) {
       if (fs.existsSync(path.join(check, '.harness'))) {
         projectRoot = check
+        console.log('[Supervisor] Found .harness at:', projectRoot)
         break
       }
       const parent = path.dirname(check)
       if (parent === check) break
       check = parent
     }
+    console.log('[Supervisor] Project root:', projectRoot)
 
     this.process = spawn(runtime.cmd, runtime.args, {
       env: {

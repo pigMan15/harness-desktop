@@ -83,23 +83,32 @@ def _project_list() -> list[dict]:
             return projects
     except Exception:
         pass
-    # Fallback: return current directory if it has .harness
+    # Fallback: return current project if it has .harness
     root = PROJECT_ROOT
     harness = root / ".harness"
-    if not harness.is_dir():
-        return []
-    try:
-        state = json.loads((harness / "state.json").read_text(encoding="utf-8"))
-    except Exception:
-        return []
-    return [{
-        "projectId": root.name,
-        "name": root.name,
-        "path": str(root),
-        "health": "healthy",
-        "protocolVersion": state.get("schema_version", "1.0"),
-        "activeRunId": state.get("run_id", ""),
-    }]
+    if harness.is_dir():
+        try:
+            state = json.loads((harness / "state.json").read_text(encoding="utf-8"))
+            return [{
+                "projectId": root.name, "name": root.name, "path": str(root),
+                "health": "healthy", "protocolVersion": state.get("schema_version", "1.0"),
+                "activeRunId": state.get("run_id", ""),
+            }]
+        except Exception:
+            pass
+    # Last resort: check a few common paths
+    for check in [Path("."), Path(".."), Path.home() / "harness-desktop"]:
+        h = (check.resolve() / ".harness")
+        if h.is_dir():
+            try:
+                state = json.loads((h / "state.json").read_text(encoding="utf-8"))
+                return [{
+                    "projectId": check.name, "name": check.name, "path": str(check.resolve()),
+                    "health": "healthy", "protocolVersion": state.get("schema_version", "1.0"),
+                }]
+            except Exception:
+                pass
+    return []
 
 
 def _project_import(path: str) -> dict:
