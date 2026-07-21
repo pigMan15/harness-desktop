@@ -1,0 +1,31 @@
+{
+  "run_id": "desktop-codex-approval-20260721",
+  "intent": "FEATURE",
+  "risk": "HIGH",
+  "changed_files": [
+    "runtime/executors/*",
+    "runtime/approvals/*"
+  ],
+  "commands": [
+    {
+      "command": "py -3 -m pytest runtime/tests -q -p anyio",
+      "exit": 0,
+      "result": "167 passed"
+    }
+  ],
+  "gates": {
+    "G1": "PASS",
+    "G2": "PASS",
+    "G3": "PASS",
+    "G4": "PASS",
+    "G5": "NOT_REQUIRED",
+    "G6": "PASS",
+    "G7": "NOT_REQUIRED",
+    "G8": "PASS"
+  },
+  "artifacts": {},
+  "waivers": [],
+  "residual_risks": [
+    "Codex Adapter tested via event parser only; actual subprocess spawn needs real Codex CLI"
+  ]
+}
