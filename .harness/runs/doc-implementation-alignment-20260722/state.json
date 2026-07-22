@@ -1,0 +1,69 @@
+﻿{
+    "schema_version":  "1.0",
+    "run_id":  "doc-implementation-alignment-20260722",
+    "status":  "DONE",
+    "intent":  "FEATURE",
+    "risk":  "MEDIUM",
+    "current_node":  "KNOWLEDGE_PROMOTION",
+    "next_role":  "knowledge-keeper",
+    "required_nodes":  [
+                           "INTAKE",
+                           "CONTEXT_PACK",
+                           "REQUIREMENT_REVIEW",
+                           "SOLUTION_DESIGN",
+                           "IMPLEMENTATION_PLAN",
+                           "ACCEPTANCE_CONFIRMATION",
+                           "DEVELOPMENT",
+                           "COMPILE",
+                           "UNIT_TEST",
+                           "EVIDENCE_CAPTURE",
+                           "ACCEPTANCE_REPORT",
+                           "KNOWLEDGE_PROMOTION"
+                       ],
+    "completed_nodes":  [
+                            "INTAKE",
+                            "CONTEXT_PACK",
+                            "REQUIREMENT_REVIEW",
+                            "SOLUTION_DESIGN",
+                            "IMPLEMENTATION_PLAN",
+                            "ACCEPTANCE_CONFIRMATION",
+                            "DEVELOPMENT",
+                            "COMPILE",
+                            "UNIT_TEST",
+                            "EVIDENCE_CAPTURE",
+                            "ACCEPTANCE_REPORT",
+                            "KNOWLEDGE_PROMOTION"
+                        ],
+    "blocked_by":  [
+
+                   ],
+    "artifacts":  {
+                      "INTAKE":  "00-intake.md",
+                      "CONTEXT_PACK":  "00-context-pack.md",
+                      "REQUIREMENT_REVIEW":  "01-requirement-review.md",
+                      "SOLUTION_DESIGN":  "03-solution-design.md",
+                      "IMPLEMENTATION_PLAN":  "06-implementation-plan.md",
+                      "ACCEPTANCE_CONFIRMATION":  "07-acceptance-confirmation.md",
+                      "DEVELOPMENT":  "11-development.md",
+                      "COMPILE":  "12-compile.md",
+                      "UNIT_TEST":  "13-unit-test.md",
+                      "EVIDENCE_CAPTURE":  "15-evidence.json",
+                      "ACCEPTANCE_REPORT":  "18-acceptance-report.md",
+                      "KNOWLEDGE_PROMOTION":  "19-knowledge-promotion.md"
+                  },
+    "gates":  {
+                  "G1_REQUIREMENTS":  "PASS",
+                  "G2_DESIGN":  "PASS",
+                  "G3_COMPILE":  "PASS",
+                  "G4_UNIT_TEST":  "WAIVED",
+                  "G5_ATDD":  "NOT_REQUIRED",
+                  "G6_EVIDENCE":  "PASS",
+                  "G7_PRERELEASE":  "NOT_REQUIRED",
+                  "G8_ACCEPTANCE":  "PASS"
+              },
+    "retry_counts":  {
+                     },
+    "last_updated":  "2026-07-22T21:45:07.0492350+08:00",
+    "notes":  "核对当前项目整体实现与 doc 设计文档差异，输出清单并完善。",
+    "phase_dir":  ".harness/phases/doc-implementation-alignment-20260722"
+}

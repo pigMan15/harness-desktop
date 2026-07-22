@@ -1,37 +1,28 @@
-/**
- * Preload script — exposes typed business API to the Renderer.
- *
- * Architecture §8.1/§14:
- * - Only exposes window.harness via contextBridge
- * - Does NOT expose exec, readFile, writeFile, require, process
- * - Renderer has no Node.js or shell access
- *
- * Security: this is the ONLY channel between Renderer and Main.
- * Adding a new method requires updating the allowlist below.
- */
-
 import { contextBridge, ipcRenderer } from 'electron'
-
-/** Valid event channels — explicit allowlist (architecture §14). */
-const VALID_EVENT_CHANNELS = ['runtime:status', 'runtime:error'] as const
+const VALID_EVENT_CHANNELS = ['runtime:status','runtime:error'] as const
 
 contextBridge.exposeInMainWorld('harness', {
-  /** Query the Runtime health status via IPC → Main → Runtime HTTP. */
-  health: (): Promise<{ healthy: boolean; runtimeVersion?: string; protocolVersion?: string }> =>
-    ipcRenderer.invoke('runtime:health'),
-
-  /** Subscribe to Runtime lifecycle events (status or error). */
-  onRuntimeEvent: (
-    channel: string,
-    callback: (...args: unknown[]) => void,
-  ): void => {
-    if (VALID_EVENT_CHANNELS.includes(channel as (typeof VALID_EVENT_CHANNELS)[number])) {
-      ipcRenderer.on(channel, (_event, ...args) => callback(...args))
-    }
-  },
+  health: () => ipcRenderer.invoke('runtime:health'),
+  listProjects: () => ipcRenderer.invoke('project:list'),
+  importProject: (p: string) => ipcRenderer.invoke('project:import', p),
+  validateProject: (p: string) => ipcRenderer.invoke('project:validate', p),
+  listRuns: (p: string) => ipcRenderer.invoke('run:list', p),
+  createRun: (p: string,i: string,r: string,id: string) => ipcRenderer.invoke('run:create',p,i,r,id),
+  getWorkflow: (p: string) => ipcRenderer.invoke('workflow:get', p),
+  compileWorkflow: (p: string,i: string,r: string) => ipcRenderer.invoke('workflow:compile',p,i,r),
+  diffWorkflow: (p: string,y: string) => ipcRenderer.invoke('workflow:diff',p,y),
+  applyWorkflow: (p: string,y: string,h: string) => ipcRenderer.invoke('workflow:apply',p,y,h),
+  listGates: (p: string) => ipcRenderer.invoke('gate:list', p),
+  evaluateGate: (g: string,s: string) => ipcRenderer.invoke('gate:evaluate',g,s),
+  listArtifacts: (p: string) => ipcRenderer.invoke('artifact:list', p),
+  readArtifact: (p: string,f: string) => ipcRenderer.invoke('artifact:read',p,f),
+  listKnowledge: (p: string,s: string) => ipcRenderer.invoke('knowledge:list',p,s),
+  reviewKnowledge: (id: number,d: string) => ipcRenderer.invoke('knowledge:review',id,d),
+  startExecution: (p: string,n: string,r: string) => ipcRenderer.invoke('execution:start',p,n,r),
+  pollExecution: (s: string) => ipcRenderer.invoke('execution:poll',s),
+  respondExecution: (s: string,d: any) => ipcRenderer.invoke('execution:respond',s,d),
+  cancelExecution: (s: string) => ipcRenderer.invoke('execution:cancel',s),
+  scanRecovery: (p: string) => ipcRenderer.invoke('recovery:scan',p),
+  cleanupRecovery: (p: string) => ipcRenderer.invoke('recovery:cleanup',p),
+  onRuntimeEvent: (ch: string,cb: (...a: any[]) => void) => { if (VALID_EVENT_CHANNELS.includes(ch as typeof VALID_EVENT_CHANNELS[number])) ipcRenderer.on(ch,(_e,...a) => cb(...a)) },
 })
-
-// Security verification: this file must NOT contain:
-// - require() calls (except for the TypeScript import above)
-// - fs, child_process, net, or other Node built-in imports
-// - process.env access

@@ -37,21 +37,16 @@ def main() -> None:
     )
     server = uvicorn.Server(config)
 
-    # Print the assigned port to stdout — Electron Main reads this
-    # to know where to send the health-check request.
-    # We need to get the port after the server starts.
-    # Uvicorn doesn't expose the port before serve(), so we use a callback.
-    original_run = server.run
+    # Print the assigned port to stdout — Electron Main reads this.
+    # Bind the socket first to get the actual port (port=0 = random).
+    import socket as _socket
+    _sock = _socket.socket(_socket.AF_INET, _socket.SOCK_STREAM)
+    _sock.bind(("127.0.0.1", 0))
+    port = _sock.getsockname()[1]
+    _sock.close()
+    config.port = port
+    print(f"PORT:{port}", flush=True)
 
-    def run_with_port():
-        for sock in server.servers.sockets if server.servers else []:
-            addr = sock.getsockname()
-            if addr and len(addr) >= 2:
-                print(f"PORT:{addr[1]}", flush=True)
-                break
-        original_run()
-
-    server.run = run_with_port  # type: ignore[method-assign]
     server.run()
 
 

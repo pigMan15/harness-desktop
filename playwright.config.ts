@@ -1,5 +1,7 @@
 import { defineConfig } from '@playwright/test'
 
+const chromiumExecutablePath = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH
+
 // Playwright E2E configuration — skeleton for Phase 7 end-to-end tests
 // M1 does not run E2E; this file establishes the config baseline.
 export default defineConfig({
@@ -13,7 +15,12 @@ export default defineConfig({
   projects: [
     {
       name: 'chromium',
-      use: { browserName: 'chromium' },
+      use: {
+        browserName: 'chromium',
+        ...(chromiumExecutablePath
+          ? { launchOptions: { executablePath: chromiumExecutablePath } }
+          : {}),
+      },
     },
   ],
 })

@@ -10,6 +10,20 @@
 
 ---
 
+## 当前实现核对状态（2026-07-22）
+
+本节是当前仓库实现与原始实施计划的核对快照；下方 checkbox 仍保留原计划结构，不再单独作为完成事实来源。
+
+| 分类 | 当前结论 |
+| --- | --- |
+| 已有实现证据 | Runtime 协议适配、项目/Run、状态存储、Workflow 编译/草稿/版本/ZIP、Gate、Artifact、Executor、Approval policy、Recovery、Knowledge、Electron Main/Preload、Renderer 页面、PyInstaller/Electron 打包脚本均已有源码或测试入口。 |
+| 已补齐文档 | `README_en.md` 已从旧 Bridle CLI 文档改为 Harness Desktop；新增 `docs/user-guide.md`、`docs/workflow-studio.md`、`docs/troubleshooting.md`。 |
+| 仍是实现缺口 | `runtime/src/harness_runtime/artifacts/watcher.py`、`runtime/src/harness_runtime/approvals/service.py`、`apps/renderer/tests/*.tsx`、`tests/e2e/*.spec.ts` 当前不存在。 |
+| 仍需外部证据 | 干净 Windows VM 安装/升级/卸载、真实代码签名、自动更新源、完整 Playwright E2E 和真实 Codex smoke 需要发布级证据，不能仅凭源码存在宣称通过。 |
+| 验证记录 | 本次核对的详细差异清单写入 `.harness/phases/doc-implementation-alignment-20260722/20-doc-implementation-diff.md`。 |
+
+---
+
 ## 1. 实施原则
 
 1. 每个任务先写失败测试，再实现最小可用行为。

@@ -11,6 +11,8 @@
 import { ChildProcess, spawn } from 'node:child_process'
 import crypto from 'node:crypto'
 import { EventEmitter } from 'node:events'
+import fs from 'node:fs'
+import path from 'node:path'
 
 export interface RuntimeSupervisorEvents {
   status: (healthy: boolean) => void
@@ -19,27 +21,51 @@ export interface RuntimeSupervisorEvents {
 
 export class RuntimeSupervisor extends EventEmitter {
   private process: ChildProcess | null = null
-  private token: string = ''
-  private port: number = 0
+  token: string = ''
+  port: number = 0
 
   /** Generate a one-time 64-char hex token for authentication. */
   private generateToken(): string {
     return crypto.randomBytes(32).toString('hex')
   }
 
-  /** Probe for an available Python interpreter (architecture solution design ADR-1). */
-  private findPython(): string {
-    // Priority: py -3 > common paths > user config (Phase 2+)
-    return 'py'
+  /** Find the Runtime executable — bundled exe first, then system Python. */
+  private findRuntime(): { cmd: string; args: string[] } {
+    // 1. Bundled harness-runtime.exe (packaged app)
+    const bundled = path.join(process.resourcesPath, 'harness-runtime.exe')
+    if (fs.existsSync(bundled)) {
+      return { cmd: bundled, args: [] }
+    }
+    // 2. System Python via py launcher (development)
+    return { cmd: 'py', args: ['-3', '-m', 'harness_runtime.main'] }
   }
 
   /** Start the Python Runtime and perform the authentication handshake. */
   spawn(): void {
     this.token = this.generateToken()
-    const pythonPath = this.findPython()
+    const runtime = this.findRuntime()
 
-    this.process = spawn(pythonPath, ['-3', '-m', 'harness_runtime.main'], {
-      env: { ...process.env, HARNESS_RUNTIME_TOKEN: this.token },
+    // Find project root: search up from cwd for .harness directory
+    let projectRoot = process.cwd()
+    let check = path.resolve(projectRoot)
+    for (let i = 0; i < 10; i++) {
+      if (fs.existsSync(path.join(check, '.harness'))) {
+        projectRoot = check
+        console.log('[Supervisor] Found .harness at:', projectRoot)
+        break
+      }
+      const parent = path.dirname(check)
+      if (parent === check) break
+      check = parent
+    }
+    console.log('[Supervisor] Project root:', projectRoot)
+
+    this.process = spawn(runtime.cmd, runtime.args, {
+      env: {
+        ...process.env,
+        HARNESS_RUNTIME_TOKEN: this.token,
+        HARNESS_PROJECT_ROOT: projectRoot,
+      },
       stdio: ['ignore', 'pipe', 'pipe'],
     })
 

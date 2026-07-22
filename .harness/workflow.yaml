@@ -1,4 +1,4 @@
-﻿schema_version: "1.0"
+schema_version: "1.0"
 artifact_root: "state.phase_dir"
 
 nodes:
@@ -148,5 +148,3 @@ gate_meanings:
   G6_EVIDENCE: "证据文件必须记录命令、结果、产物和豁免。"
   G7_PRERELEASE: "业务代码变更必须完成预发部署和接口检查。"
   G8_ACCEPTANCE: "验收报告必须总结范围、变更、验证和剩余风险。"
-
-
