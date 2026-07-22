@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react'
+import React, { useState, useRef, useEffect } from 'react'
 
 interface LogEntry { type: string; sequence: number; content?: string; tool?: string; params?: any; message?: string; category?: string; data?: any; code?: number }
 

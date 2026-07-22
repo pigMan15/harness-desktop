@@ -1,0 +1,36 @@
+{
+  "schema_version": "1.0",
+  "run_id": "worktree-change-inventory-20260722",
+  "status": "DONE",
+  "intent": "QUERY",
+  "risk": "NA",
+  "current_node": "KNOWLEDGE_PROMOTION",
+  "next_role": "knowledge-keeper",
+  "required_nodes": [
+    "INTAKE",
+    "KNOWLEDGE_PROMOTION"
+  ],
+  "completed_nodes": [
+    "INTAKE",
+    "KNOWLEDGE_PROMOTION"
+  ],
+  "blocked_by": [],
+  "artifacts": {
+    "INTAKE": ".harness/phases/worktree-change-inventory-20260722/00-intake.md",
+    "KNOWLEDGE_PROMOTION": ".harness/phases/worktree-change-inventory-20260722/19-knowledge-promotion.md"
+  },
+  "gates": {
+    "G1_REQUIREMENTS": "NOT_REQUIRED",
+    "G2_DESIGN": "NOT_REQUIRED",
+    "G3_COMPILE": "NOT_REQUIRED",
+    "G4_UNIT_TEST": "NOT_REQUIRED",
+    "G5_ATDD": "NOT_REQUIRED",
+    "G6_EVIDENCE": "NOT_REQUIRED",
+    "G7_PRERELEASE": "NOT_REQUIRED",
+    "G8_ACCEPTANCE": "NOT_REQUIRED"
+  },
+  "retry_counts": {},
+  "last_updated": "2026-07-22T23:12:20.0000000+08:00",
+  "notes": "已整理当前 dirty worktree，输出按 run 和模块拆分的 staging/commit 建议清单。",
+  "phase_dir": ".harness/phases/worktree-change-inventory-20260722"
+}

@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron'
-const CH = ['runtime:status','runtime:error'] as const
+const VALID_EVENT_CHANNELS = ['runtime:status','runtime:error'] as const
 
 contextBridge.exposeInMainWorld('harness', {
   health: () => ipcRenderer.invoke('runtime:health'),
@@ -24,5 +24,5 @@ contextBridge.exposeInMainWorld('harness', {
   cancelExecution: (s: string) => ipcRenderer.invoke('execution:cancel',s),
   scanRecovery: (p: string) => ipcRenderer.invoke('recovery:scan',p),
   cleanupRecovery: (p: string) => ipcRenderer.invoke('recovery:cleanup',p),
-  onRuntimeEvent: (ch: string,cb: (...a: any[]) => void) => { if (CH.includes(ch as typeof CH[number])) ipcRenderer.on(ch,(_e,...a) => cb(...a)) },
+  onRuntimeEvent: (ch: string,cb: (...a: any[]) => void) => { if (VALID_EVENT_CHANNELS.includes(ch as typeof VALID_EVENT_CHANNELS[number])) ipcRenderer.on(ch,(_e,...a) => cb(...a)) },
 })

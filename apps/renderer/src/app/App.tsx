@@ -20,6 +20,8 @@ declare global {
       createRun: (projectId: string, intent: string, risk: string, runId: string) => Promise<any>
       getWorkflow: (projectId: string) => Promise<any>
       compileWorkflow: (projectId: string, intent: string, risk: string) => Promise<any>
+      diffWorkflow: (projectId: string, yaml: string) => Promise<any>
+      applyWorkflow: (projectId: string, yaml: string, expectedHash: string) => Promise<any>
       listGates: (projectId: string) => Promise<any>
       evaluateGate: (gateId: string, status: string) => Promise<any>
       listArtifacts: (projectId: string) => Promise<any>

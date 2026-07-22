@@ -7,7 +7,6 @@
  */
 
 import { app, BrowserWindow, dialog, ipcMain } from 'electron'
-import { execSync } from 'node:child_process'
 import path from 'node:path'
 import { RuntimeSupervisor } from './runtime-supervisor'
 

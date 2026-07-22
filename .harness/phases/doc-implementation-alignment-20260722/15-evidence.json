@@ -1,0 +1,121 @@
+{
+  "run_id": "doc-implementation-alignment-20260722",
+  "intent": "FEATURE",
+  "risk": "MEDIUM",
+  "changed_files": [
+    "README.md",
+    "README_en.md",
+    "doc/desktop-implementation-plan.md",
+    "docs/user-guide.md",
+    "docs/workflow-studio.md",
+    "docs/troubleshooting.md",
+    "apps/desktop/src/main/index.ts",
+    "apps/desktop/src/preload/index.ts",
+    "apps/renderer/src/app/App.tsx",
+    "apps/renderer/src/features/execution/ExecutionPage.tsx",
+    ".harness/phases/doc-implementation-alignment-20260722/00-intake.md",
+    ".harness/phases/doc-implementation-alignment-20260722/00-context-pack.md",
+    ".harness/phases/doc-implementation-alignment-20260722/01-requirement-review.md",
+    ".harness/phases/doc-implementation-alignment-20260722/03-solution-design.md",
+    ".harness/phases/doc-implementation-alignment-20260722/06-implementation-plan.md",
+    ".harness/phases/doc-implementation-alignment-20260722/07-acceptance-confirmation.md",
+    ".harness/phases/doc-implementation-alignment-20260722/11-development.md",
+    ".harness/phases/doc-implementation-alignment-20260722/12-compile.md",
+    ".harness/phases/doc-implementation-alignment-20260722/13-unit-test.md",
+    ".harness/phases/doc-implementation-alignment-20260722/20-doc-implementation-diff.md"
+  ],
+  "commands": [
+    {
+      "name": "查看工作区状态",
+      "command": "git status --short",
+      "cwd": "G:\\Project\\ai\\harness-desktop",
+      "exit_code": 0,
+      "result": "命令成功；发现本任务改动以及若干既有非本任务改动，已在证据中区分。"
+    },
+    {
+      "name": "TypeScript 静态检查",
+      "command": "pnpm typecheck",
+      "cwd": "G:\\Project\\ai\\harness-desktop",
+      "exit_code": 0,
+      "result": "使用 bundled Node PATH 后通过；desktop、renderer、contracts 均完成 tsc --noEmit。"
+    },
+    {
+      "name": "全量 Vitest 工作区测试",
+      "command": "pnpm test",
+      "cwd": "G:\\Project\\ai\\harness-desktop",
+      "exit_code": 1,
+      "result": "失败原因是 Vitest 扫描 runtime/.pytest_cache 时 EPERM，未形成有效包级测试结果。"
+    },
+    {
+      "name": "Desktop 安全测试",
+      "command": "pnpm --filter @harness/desktop test",
+      "cwd": "G:\\Project\\ai\\harness-desktop",
+      "exit_code": 0,
+      "result": "通过；1 个测试文件、6 个测试通过。"
+    },
+    {
+      "name": "Contracts 契约测试",
+      "command": "pnpm --filter @harness/contracts test",
+      "cwd": "G:\\Project\\ai\\harness-desktop",
+      "exit_code": 0,
+      "result": "通过；1 个测试文件、6 个测试通过。"
+    },
+    {
+      "name": "Renderer 测试",
+      "command": "pnpm --filter @harness/renderer test",
+      "cwd": "G:\\Project\\ai\\harness-desktop",
+      "exit_code": 1,
+      "result": "无测试文件，Vitest 以 No test files found 退出；已记录为测试缺口和 G4 豁免。"
+    },
+    {
+      "name": "Python Runtime 测试",
+      "command": "python -m pytest runtime\\tests -q",
+      "cwd": "G:\\Project\\ai\\harness-desktop",
+      "exit_code": 1,
+      "result": "当前 shell 中无 python 命令；bundled Python 也缺少 pytest 模块，无法验证 README 中的 pytest 数量声明。"
+    }
+  ],
+  "gates": {
+    "G1_REQUIREMENTS": "PASS",
+    "G2_DESIGN": "PASS",
+    "G3_COMPILE": "PASS",
+    "G4_UNIT_TEST": "WAIVED",
+    "G5_ATDD": "NOT_REQUIRED",
+    "G6_EVIDENCE": "PASS",
+    "G7_PRERELEASE": "NOT_REQUIRED",
+    "G8_ACCEPTANCE": "PASS"
+  },
+  "artifacts": [
+    ".harness/phases/doc-implementation-alignment-20260722/00-intake.md",
+    ".harness/phases/doc-implementation-alignment-20260722/00-context-pack.md",
+    ".harness/phases/doc-implementation-alignment-20260722/01-requirement-review.md",
+    ".harness/phases/doc-implementation-alignment-20260722/03-solution-design.md",
+    ".harness/phases/doc-implementation-alignment-20260722/06-implementation-plan.md",
+    ".harness/phases/doc-implementation-alignment-20260722/07-acceptance-confirmation.md",
+    ".harness/phases/doc-implementation-alignment-20260722/11-development.md",
+    ".harness/phases/doc-implementation-alignment-20260722/12-compile.md",
+    ".harness/phases/doc-implementation-alignment-20260722/13-unit-test.md",
+    ".harness/phases/doc-implementation-alignment-20260722/20-doc-implementation-diff.md",
+    ".harness/phases/doc-implementation-alignment-20260722/18-acceptance-report.md"
+  ],
+  "waivers": [
+    {
+      "scope": "G4_UNIT_TEST: renderer 单元测试",
+      "reason": "apps/renderer 当前没有测试文件，Vitest 返回 No test files found；本次以 typecheck 保护 renderer 类型一致性，并记录为后续测试缺口。",
+      "owner": "Codex",
+      "time": "2026-07-22T21:40:14.8900636+08:00"
+    },
+    {
+      "scope": "G4_UNIT_TEST: Python Runtime 测试",
+      "reason": "当前 shell 无 python 命令，bundled Python 无 pytest 模块；本次没有修改 Runtime 源码，pytest 结果作为剩余验证风险记录。",
+      "owner": "Codex",
+      "time": "2026-07-22T21:40:14.8900636+08:00"
+    }
+  ],
+  "residual_risks": [
+    "完整 Playwright E2E、Windows 干净虚拟机安装/升级/卸载、代码签名、自动更新源和真实 Codex smoke 尚未验证。",
+    "README 中 pytest 数量声明未能在当前 shell 环境验证，需要具备 pytest 的 Python dev 环境复核。",
+    "renderer 组件测试、artifact watcher 和 approval service 仍是实现或测试缺口，已在差异清单中记录。",
+    "工作区存在非本任务改动（例如 .harness/workflow.yaml、pnpm 文件、.claude/），本次未回退也未纳入完成声明。"
+  ]
+}

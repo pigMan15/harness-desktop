@@ -1,0 +1,85 @@
+{
+  "run_id": "e2e-browser-verification-20260722",
+  "intent": "FEATURE",
+  "risk": "MEDIUM",
+  "changed_files": [
+    "playwright.config.ts"
+  ],
+  "commands": [
+    {
+      "name": "E2E 场景发现",
+      "command": "pnpm test:e2e --list",
+      "cwd": "G:\\Project\\ai\\harness-desktop",
+      "exit_code": 0,
+      "result": "通过：发现 1 个文件中的 2 个 Chromium 场景"
+    },
+    {
+      "name": "官方 Chromium 安装尝试",
+      "command": "pnpm exec playwright install chromium",
+      "cwd": "G:\\Project\\ai\\harness-desktop",
+      "exit_code": 124,
+      "result": "阻塞：184 秒超时，Playwright bundled Chromium 未安装完成"
+    },
+    {
+      "name": "系统 Chrome fallback 完整 E2E",
+      "command": "PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe pnpm test:e2e",
+      "cwd": "G:\\Project\\ai\\harness-desktop",
+      "exit_code": 0,
+      "result": "通过：使用系统 Chrome 执行 2 个 Playwright 场景，全部通过"
+    },
+    {
+      "name": "TypeScript 类型检查",
+      "command": "pnpm typecheck",
+      "cwd": "G:\\Project\\ai\\harness-desktop",
+      "exit_code": 0,
+      "result": "通过：desktop、renderer、contracts workspace 均完成 tsc --noEmit"
+    },
+    {
+      "name": "仓库聚合单测",
+      "command": "pnpm test",
+      "cwd": "G:\\Project\\ai\\harness-desktop",
+      "exit_code": 0,
+      "result": "通过：desktop 6 项、renderer 6 项、contracts 6 项测试通过"
+    }
+  ],
+  "gates": {
+    "G1_REQUIREMENTS": "PASS",
+    "G2_DESIGN": "PASS",
+    "G3_COMPILE": "PASS",
+    "G4_UNIT_TEST": "PASS",
+    "G5_ATDD": "NOT_REQUIRED",
+    "G6_EVIDENCE": "PASS",
+    "G7_PRERELEASE": "NOT_REQUIRED",
+    "G8_ACCEPTANCE": "PASS"
+  },
+  "artifacts": [
+    ".harness/phases/e2e-browser-verification-20260722/00-intake.md",
+    ".harness/phases/e2e-browser-verification-20260722/00-context-pack.md",
+    ".harness/phases/e2e-browser-verification-20260722/01-requirement-review.md",
+    ".harness/phases/e2e-browser-verification-20260722/03-solution-design.md",
+    ".harness/phases/e2e-browser-verification-20260722/06-implementation-plan.md",
+    ".harness/phases/e2e-browser-verification-20260722/07-acceptance-confirmation.md",
+    ".harness/phases/e2e-browser-verification-20260722/11-development.md",
+    ".harness/phases/e2e-browser-verification-20260722/12-compile.md",
+    ".harness/phases/e2e-browser-verification-20260722/13-unit-test.md",
+    ".harness/phases/e2e-browser-verification-20260722/14-atdd.md",
+    ".harness/phases/e2e-browser-verification-20260722/15-evidence.json",
+    ".harness/phases/e2e-browser-verification-20260722/18-acceptance-report.md",
+    ".harness/phases/e2e-browser-verification-20260722/19-knowledge-promotion.md"
+  ],
+  "waivers": [
+    {
+      "scope": "G5_ATDD",
+      "reason": "当前 FEATURE/MEDIUM workflow 不要求 ATDD 节点；已通过完整 Playwright E2E 场景补充验证。"
+    },
+    {
+      "scope": "G7_PRERELEASE",
+      "reason": "当前 FEATURE/MEDIUM workflow 不要求预发布部署和接口测试。"
+    }
+  ],
+  "residual_risks": [
+    "Playwright bundled Chromium 仍未安装成功，本次完整 E2E 使用系统 Chrome fallback。",
+    "系统 Chrome 与 Playwright bundled Chromium 版本可能不同，后续 CI 或发布环境仍建议预置或成功安装官方浏览器包。",
+    "当前 E2E baseline 只覆盖夹具存在性和 renderer HTML 基线，不等同于完整 Electron 桌面端冒烟。"
+  ]
+}
