@@ -1,0 +1,37 @@
+{
+  "schema_version": "1.0",
+  "run_id": "desktop-package-20260722",
+  "status": "IN_PROGRESS",
+  "intent": "DEPLOYMENT",
+  "risk": "MEDIUM",
+  "current_node": "PRE_MORTEM",
+  "next_role": "quality-guardian",
+  "phase_dir": ".harness/phases/desktop-package-20260722",
+  "required_nodes": [
+    "INTAKE",
+    "PRE_MORTEM",
+    "PRERELEASE_DEPLOYMENT",
+    "INTERFACE_TEST",
+    "EVIDENCE_CAPTURE",
+    "ACCEPTANCE_REPORT",
+    "KNOWLEDGE_PROMOTION"
+  ],
+  "completed_nodes": [
+    "INTAKE"
+  ],
+  "blocked_by": [],
+  "artifacts": {},
+  "gates": {
+    "G1_REQUIREMENTS": "NOT_REQUIRED",
+    "G2_DESIGN": "NOT_REQUIRED",
+    "G3_COMPILE": "NOT_REQUIRED",
+    "G4_UNIT_TEST": "NOT_REQUIRED",
+    "G5_ATDD": "NOT_REQUIRED",
+    "G6_EVIDENCE": "NOT_RUN",
+    "G7_PRERELEASE": "NOT_RUN",
+    "G8_ACCEPTANCE": "NOT_RUN"
+  },
+  "retry_counts": {},
+  "last_updated": "2026-07-22T21:17:59.2033942+08:00",
+  "notes": "打包 @harness/desktop Electron 应用"
+}
