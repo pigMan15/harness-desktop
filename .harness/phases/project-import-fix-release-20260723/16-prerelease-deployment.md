@@ -37,3 +37,9 @@ The same Runtime hash was verified in `apps/desktop/resources/harness-runtime.ex
 - Annotated tag `desktop-v0.1.0` pushed and points to `d0f8032`.
 - GitHub Release creation and asset upload are blocked because the current in-app browser still shows the GitHub sign-in form.
 - The Release page is prepared for `desktop-v0.1.0`; after authentication, upload only the two assets listed above.
+
+## Alternative deployment channel
+
+- `.github/workflows/release.yml` now provides a no-local-login path.
+- The workflow is triggered by the release-workflow commit pushed to `main`, checks out immutable tag `desktop-v0.1.0`, rebuilds Runtime and the Windows installer on `windows-latest`, and creates/uploads the Release with the repository-provided `GITHUB_TOKEN`.
+- Local Git SSH credentials are used only to push the workflow commit; no GitHub password, PAT or browser session is transmitted by the local process.

@@ -1,0 +1,107 @@
+name: Release Desktop
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/release.yml
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    if: "startsWith(github.event.head_commit.message, 'ci: publish desktop 0.1.0 via actions')"
+    runs-on: windows-latest
+    env:
+      RELEASE_TAG: desktop-v0.1.0
+      RELEASE_VERSION: 0.1.0
+
+    steps:
+      - name: Checkout release tag
+        uses: actions/checkout@v4
+        with:
+          ref: desktop-v0.1.0
+          fetch-depth: 0
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        shell: pwsh
+        run: |
+          pnpm install --frozen-lockfile
+          python -m pip install --upgrade pip
+          python -m pip install pyinstaller
+          python -m pip install -e "runtime[dev]"
+
+      - name: Build Runtime from source
+        shell: pwsh
+        run: |
+          Push-Location runtime
+          python -m PyInstaller harness-runtime.spec --clean --noconfirm
+          Pop-Location
+          Copy-Item runtime\dist\harness-runtime.exe apps\desktop\resources\harness-runtime.exe -Force
+
+      - name: Verify version and Runtime
+        shell: pwsh
+        run: |
+          if ((Get-Content apps\desktop\package.json -Raw | ConvertFrom-Json).version -ne $env:RELEASE_VERSION) { throw 'Desktop package version mismatch' }
+          if (-not (Test-Path apps\desktop\resources\harness-runtime.exe)) { throw 'Runtime binary missing' }
+          python -m pytest runtime/tests/api/test_health_auth.py runtime/tests/test_smoke.py -q
+
+      - name: Build Windows installer
+        shell: pwsh
+        run: pnpm --filter @harness/desktop package
+
+      - name: Collect release assets and hashes
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path release-assets | Out-Null
+          $setup = Get-ChildItem apps\desktop\out\make -Recurse -Filter '*Setup.exe' | Select-Object -First 1
+          $nupkg = Get-ChildItem apps\desktop\out\make -Recurse -Filter '*-full.nupkg' | Select-Object -First 1
+          if (-not $setup) { throw 'Squirrel Setup.exe was not generated' }
+          if (-not $nupkg) { throw 'Squirrel full nupkg was not generated' }
+          Copy-Item $setup.FullName "release-assets\Harness Desktop-$env:RELEASE_VERSION Setup.exe"
+          Copy-Item $nupkg.FullName "release-assets\harness-desktop-$env:RELEASE_VERSION-full.nupkg"
+          $setupHash = (Get-FileHash "release-assets\Harness Desktop-$env:RELEASE_VERSION Setup.exe" -Algorithm SHA256).Hash
+          $nupkgHash = (Get-FileHash "release-assets\harness-desktop-$env:RELEASE_VERSION-full.nupkg" -Algorithm SHA256).Hash
+          @"
+          # Harness Desktop $env:RELEASE_VERSION
+
+          Commit: $env:RELEASE_TAG
+
+          ## Assets
+
+          - Harness Desktop-$env:RELEASE_VERSION Setup.exe
+            - SHA-256: $setupHash
+          - harness-desktop-$env:RELEASE_VERSION-full.nupkg
+            - SHA-256: $nupkgHash
+
+          Built by GitHub Actions on Windows from tag $env:RELEASE_TAG.
+          "@ | Set-Content release-notes.md -Encoding UTF8
+
+      - name: Create GitHub Release and upload assets
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: desktop-v0.1.0
+          name: Harness Desktop 0.1.0 - Project Import and Workflow Alignment
+          body_path: release-notes.md
+          files: |
+            release-assets/Harness Desktop-0.1.0 Setup.exe
+            release-assets/harness-desktop-0.1.0-full.nupkg
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
