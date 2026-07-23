@@ -1,21 +1,23 @@
 import React, { useEffect, useState } from 'react'
+import { ProjectRequired, useWorkspace } from '../layout/WorkspaceContext'
 
-export function KnowledgePage(): React.ReactElement {
+function KnowledgeContent(): React.ReactElement {
+  const { selectedProjectId } = useWorkspace()
   const [candidates, setCandidates] = useState<any[]>([])
   const [tab, setTab] = useState<'draft' | 'accepted' | 'rejected'>('draft')
   const [msg, setMsg] = useState('')
 
   useEffect(() => {
     setMsg('')
-    window.harness?.listKnowledge('local', tab).then(r => {
+    window.harness?.listKnowledge(selectedProjectId, tab).then(r => {
       if (Array.isArray(r)) setCandidates(r)
       else if (r?.error) setMsg(r.error)
     }).catch((e: any) => setMsg(e.message))
-  }, [tab])
+  }, [selectedProjectId, tab])
 
   async function review(id: number, decision: string) {
     try {
-      const r = await window.harness!.reviewKnowledge(id, decision)
+      const r = await window.harness!.reviewKnowledge(selectedProjectId, id, decision)
       if (r && !r.error) {
         setCandidates(prev => prev.filter(c => c.id !== id))
         setMsg(`Candidate ${id} ${decision}`)
@@ -58,3 +60,5 @@ export function KnowledgePage(): React.ReactElement {
     </div>
   )
 }
+
+export function KnowledgePage(): React.ReactElement { return <ProjectRequired><KnowledgeContent /></ProjectRequired> }

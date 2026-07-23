@@ -8,4 +8,8 @@ export type {
   ProjectSummary,
   RunStateDto,
   WorkflowDiagnostic,
+  RunSummary,
+  WorkflowNode,
+  ExecutionDecision,
+  HarnessApi,
 } from './rpc'

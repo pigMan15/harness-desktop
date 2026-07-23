@@ -1,90 +1,64 @@
-import React, { useEffect, useState } from 'react'
+import React, { useCallback, useEffect, useState } from 'react'
+import { ProjectRequired, useWorkspace } from '../layout/WorkspaceContext'
 
-const GATE_INFO: Record<string, { name: string; meaning: string }> = {
-  G1_REQUIREMENTS: { name: 'Requirements', meaning: '范围和验收标准明确' },
-  G2_DESIGN: { name: 'Design', meaning: '设计、风险、回滚和实施计划已存在' },
-  G3_COMPILE: { name: 'Compile', meaning: '代码已编译或静态检查已通过' },
-  G4_UNIT_TEST: { name: 'Unit Test', meaning: '单元测试通过或豁免已记录' },
-  G5_ATDD: { name: 'ATDD', meaning: '集成或场景验证已完成' },
-  G6_EVIDENCE: { name: 'Evidence', meaning: '证据文件完整（九字段）' },
-  G7_PRERELEASE: { name: 'Prerelease', meaning: '预发部署和接口测试已完成' },
-  G8_ACCEPTANCE: { name: 'Acceptance', meaning: '验收报告完整' },
-}
-const COLORS: Record<string, { bg: string; color: string }> = {
-  PASS: { bg: '#d4edda', color: '#155724' }, FAIL: { bg: '#f8d7da', color: '#721c24' },
-  BLOCKED: { bg: '#f8d7da', color: '#721c24' }, NOT_RUN: { bg: '#e2e3e5', color: '#383d41' },
-  NOT_REQUIRED: { bg: '#e2e3e5', color: '#6c757d' }, WAIVED: { bg: '#fff3cd', color: '#856404' },
+const GATE_INFO: Record<string, string> = {
+  G1_REQUIREMENTS: 'Requirements', G2_DESIGN: 'Design', G3_COMPILE: 'Compile', G4_UNIT_TEST: 'Unit Test',
+  G5_ATDD: 'ATDD', G6_EVIDENCE: 'Evidence', G7_PRERELEASE: 'Prerelease', G8_ACCEPTANCE: 'Acceptance',
 }
 
-export function GatesPage(): React.ReactElement {
-  const [gates, setGates] = useState<Record<string, string>>({})
-  const [selected, setSelected] = useState<string | null>(null)
-  const [msg, setMsg] = useState('')
+interface GateContext {
+  runId: string
+  currentNode: string
+  nextRole: string
+  phaseDir: string
+  revision: string
+  gates: Record<string, string>
+}
 
-  async function refresh() {
+function GatesContent(): React.ReactElement {
+  const { selectedProjectId, activeRun } = useWorkspace()
+  const [context, setContext] = useState<GateContext>()
+  const [busyGate, setBusyGate] = useState('')
+  const [message, setMessage] = useState('')
+
+  const refresh = useCallback(async () => {
+    if (!window.harness || !activeRun) { setContext(undefined); return }
+    setMessage('')
     try {
-      const r = await window.harness!.listGates('local')
-      if (r?.gates) setGates(r.gates)
-      else setMsg(r?.error || 'Failed to load gates')
-    } catch (e: any) { setMsg(e.message) }
+      const result = await window.harness.listGates(selectedProjectId, activeRun.run_id)
+      if (result.error) throw new Error(String(result.error))
+      setContext(result as unknown as GateContext)
+    } catch (cause) { setMessage(cause instanceof Error ? cause.message : 'Gate load failed') }
+  }, [selectedProjectId, activeRun])
+
+  useEffect(() => { void refresh() }, [refresh])
+
+  async function evaluate(gateId: string): Promise<void> {
+    if (!window.harness || !context) return
+    setBusyGate(gateId); setMessage('')
+    try {
+      const result = await window.harness.evaluateGate(selectedProjectId, context.runId, gateId, context.revision)
+      if (result.error) throw new Error(String(result.error))
+      setMessage(`${gateId}: ${String(result.status)} - ${String(result.reason)}`)
+      await refresh()
+    } catch (cause) { setMessage(cause instanceof Error ? cause.message : 'Gate evaluation failed') }
+    finally { setBusyGate('') }
   }
 
-  useEffect(() => { refresh() }, [])
-
-  async function setGate(id: string, status: string) {
-    setMsg(`${id} → ${status}...`)
-    try {
-      const r = await window.harness!.evaluateGate(id, status)
-      if (r && !r.error) {
-        setGates(prev => ({ ...prev, [id]: status }))
-        setMsg(`${id} → ${status} OK`)
-      } else {
-        setMsg(`Failed: ${r?.error || 'unknown'}`)
-      }
-    } catch (e: any) { setMsg(`Error: ${e.message}`) }
-  }
-
-  const passCount = Object.values(gates).filter(s => s === 'PASS').length
-  const failCount = Object.values(gates).filter(s => s === 'FAIL' || s === 'BLOCKED').length
-
-  return (
-    <div style={{ padding: 24 }}>
-      <h2>Quality Gates</h2>
-      <div style={{ display: 'flex', gap: 16, margin: '12px 0', alignItems: 'center' }}>
-        <span style={{ padding: '4px 12px', background: '#d4edda', borderRadius: 4 }}>PASS: {passCount}</span>
-        <span style={{ padding: '4px 12px', background: '#f8d7da', borderRadius: 4 }}>FAIL: {failCount}</span>
-        <button onClick={refresh} style={{ padding: '6px 14px', cursor: 'pointer', border: '1px solid #ddd', borderRadius: 6 }}>Refresh</button>
-      </div>
-      {msg && <p style={{ fontSize: 12, color: '#666', margin: '4px 0' }}>{msg}</p>}
-
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 12, marginTop: 16 }}>
-        {Object.entries(GATE_INFO).map(([id, info]) => {
-          const status = gates[id] || 'NOT_RUN'
-          const c = COLORS[status] || COLORS.NOT_RUN
-          const open = selected === id
-          return (
-            <div key={id} onClick={() => setSelected(open ? null : id)}
-              style={{ padding: 14, borderRadius: 8, background: c.bg, color: c.color, cursor: 'pointer', border: open ? '2px solid #333' : '2px solid transparent' }}>
-              <div style={{ fontSize: 11, opacity: 0.7 }}>{id}</div>
-              <div style={{ fontSize: 15, fontWeight: 600, margin: '4px 0' }}>{info.name}</div>
-              <div style={{ fontSize: 13, fontWeight: 500 }}>{status}</div>
-              {open && (
-                <div style={{ marginTop: 12, padding: 10, background: 'rgba(255,255,255,0.9)', borderRadius: 6, color: '#333' }}>
-                  <p style={{ fontSize: 12, margin: '0 0 8px 0' }}>{info.meaning}</p>
-                  <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-                    {['PASS', 'FAIL', 'WAIVED', 'BLOCKED'].map(action => (
-                      <button key={action} onClick={e => { e.stopPropagation(); setGate(id, action) }}
-                        style={{ fontSize: 11, padding: '3px 8px', border: 'none', borderRadius: 4, cursor: 'pointer', background: COLORS[action]?.bg, color: COLORS[action]?.color }}>
-                        {action}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          )
-        })}
-      </div>
-    </div>
-  )
+  return <section className="page">
+    <header className="page-header"><h1>Quality Gates</h1><button className="button icon-button" onClick={() => void refresh()} title="Refresh gates">R</button></header>
+    {message && <div className={message.includes('PASS') ? 'notice' : 'notice error'}>{message}</div>}
+    {!activeRun && <div className="empty-state"><h2>Select a task</h2><p>Create or select a task to inspect its gates.</p></div>}
+    {context && <div className="panel toolbar"><span className="badge success">ACTIVE RUN</span><strong className="mono">{context.runId}</strong><span className="muted">Node {context.currentNode}</span><span className="muted">Role {context.nextRole}</span><span className="mono muted">rev {context.revision.slice(0, 10)}</span></div>}
+    <div className="panel" style={{ marginTop: 14 }}><table className="data-table"><thead><tr><th>Gate</th><th>Name</th><th>Status</th><th /></tr></thead>
+      <tbody>{Object.entries(GATE_INFO).map(([gateId, name]) => {
+        const status = context?.gates[gateId] || 'NOT_RUN'
+        const style = status === 'PASS' ? 'success' : status === 'FAIL' || status === 'BLOCKED' ? 'danger' : status === 'WAIVED' ? 'warning' : ''
+        return <tr key={gateId}><td className="mono">{gateId}</td><td>{name}</td><td><span className={`badge ${style}`}>{status}</span></td><td style={{ textAlign: 'right' }}>
+          <button className="button" disabled={!context || Boolean(busyGate) || status === 'NOT_REQUIRED'} onClick={() => void evaluate(gateId)}>Evaluate</button>
+        </td></tr>
+      })}</tbody></table></div>
+  </section>
 }
+
+export function GatesPage(): React.ReactElement { return <ProjectRequired><GatesContent /></ProjectRequired> }

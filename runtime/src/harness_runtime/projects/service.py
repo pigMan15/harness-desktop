@@ -77,6 +77,41 @@ def list_projects() -> list[dict]:
     return [_row_to_dict(r) for r in rows]
 
 
+def get_project(project_id: str) -> dict:
+    """Return one registered project or reject an unknown identifier."""
+    if not project_id:
+        raise ValueError("PROJECT_ID_REQUIRED: select a project first")
+    db = get_db()
+    row = db.execute("SELECT * FROM projects WHERE id = ?", (project_id,)).fetchone()
+    if not row:
+        raise ValueError(f"PROJECT_NOT_FOUND: {project_id}")
+    return _row_to_dict(row)
+
+
+def resolve_project_root(project_id: str) -> Path:
+    """Resolve a registry id to a live Harness project directory.
+
+    # 项目 ID 是所有业务请求的边界，禁止在解析失败时回退到进程 cwd。
+    """
+    project = get_project(project_id)
+    root = Path(project["path"]).resolve()
+    if not root.is_dir() or not (root / ".harness").is_dir():
+        raise ValueError(f"PROJECT_PATH_MISSING: {project['path']}")
+    return root
+
+
+def update_active_run(project_id: str, run_id: str) -> dict:
+    """Update the rebuildable active-run projection for a project."""
+    get_project(project_id)
+    db = get_db()
+    db.execute(
+        "UPDATE projects SET active_run_id = ?, updated_at = ? WHERE id = ?",
+        (run_id, _now(), project_id),
+    )
+    db.commit()
+    return get_project(project_id)
+
+
 def unregister_project(project_id: str) -> bool:
     """Remove a project from the registry (does NOT delete project files)."""
     db = get_db()

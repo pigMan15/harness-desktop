@@ -9,6 +9,7 @@
 import { app, BrowserWindow, dialog, ipcMain } from 'electron'
 import path from 'node:path'
 import { RuntimeSupervisor } from './runtime-supervisor'
+import { createProjectImportHandler } from './project-import'
 
 declare const MAIN_WINDOW_VITE_DEV_SERVER_URL: string | undefined
 declare const MAIN_WINDOW_VITE_NAME: string
@@ -98,61 +99,62 @@ app.whenReady().then(() => {
 
   // ── IPC: Projects ──
   ipcMain.handle('project:list', async () => runtimeCall('project.list'))
-  ipcMain.handle('project:import', async (_e, path: string) => {
-    const win = mainWindow || BrowserWindow.getFocusedWindow() || BrowserWindow.getAllWindows()[0]
-    if (!win) return { error: 'No window available' }
-    // If path is provided and not a special trigger, import directly
-    if (path && path !== '__dialog__' && path !== '.') {
-      return runtimeCall('project.import', { path })
-    }
-    const result = await dialog.showOpenDialog(win, {
-      title: 'Import .harness Project',
-      properties: ['openDirectory'],
-    })
-    if (result.canceled) return { error: 'cancelled' }
-    return runtimeCall('project.import', { path: result.filePaths[0] })
-  })
+  ipcMain.handle('project:import', createProjectImportHandler({
+    runtimeCall,
+    showOpenDialog: (window, options) => dialog.showOpenDialog(window, options),
+    getWindow: () => mainWindow || BrowserWindow.getFocusedWindow() || BrowserWindow.getAllWindows()[0] || null,
+  }))
   ipcMain.handle('project:validate', async (_e, path: string) => runtimeCall('project.validate', { path }))
 
   // ── IPC: Runs ──
   ipcMain.handle('run:list', async (_e, projectId: string) => runtimeCall('run.list', { projectId }))
-  ipcMain.handle('run:create', async (_e, projectId: string, intent: string, risk: string, runId: string) =>
-    runtimeCall('run.create', { projectId, intent, risk, runId }))
+  ipcMain.handle('run:create', async (_e, projectId: string, intent: string, risk: string, runId: string, expectedRevision?: string) =>
+    runtimeCall('run.create', { projectId, intent, risk, runId, expectedRevision }))
+  ipcMain.handle('run:switch', async (_e, projectId: string, runId: string, expectedRevision?: string) =>
+    runtimeCall('run.switch', { projectId, runId, expectedRevision }))
+  ipcMain.handle('run:pause', async (_e, projectId: string, runId: string, expectedRevision?: string) =>
+    runtimeCall('run.pause', { projectId, runId, expectedRevision }))
+  ipcMain.handle('run:resume', async (_e, projectId: string, runId: string, expectedRevision?: string) =>
+    runtimeCall('run.resume', { projectId, runId, expectedRevision }))
 
   // ── IPC: Workflow ──
   ipcMain.handle('workflow:get', async (_e, projectId: string) => runtimeCall('workflow.get', { projectId }))
   ipcMain.handle('workflow:compile', async (_e, projectId: string, intent: string, risk: string) =>
     runtimeCall('workflow.compile', { projectId, intent, risk }))
+  ipcMain.handle('workflow:preview', async (_e, projectId: string, nodes: unknown[], intent: string, risk: string, route: string[]) =>
+    runtimeCall('workflow.preview', { projectId, nodes, intent, risk, route }))
   ipcMain.handle('workflow:diff', async (_e, projectId: string, yaml: string) =>
     runtimeCall('workflow.diff', { projectId, yaml }))
   ipcMain.handle('workflow:apply', async (_e, projectId: string, yaml: string, hash: string) =>
     runtimeCall('workflow.apply', { projectId, yaml, hash }))
 
   // ── IPC: Gates ──
-  ipcMain.handle('gate:list', async (_e, projectId: string) => runtimeCall('gate.list', { projectId }))
-  ipcMain.handle('gate:evaluate', async (_e, gateId: string, status: string) =>
-    runtimeCall('gate.evaluate', { gateId, status }))
+  ipcMain.handle('gate:list', async (_e, projectId: string, runId: string) => runtimeCall('gate.list', { projectId, runId }))
+  ipcMain.handle('gate:evaluate', async (_e, projectId: string, runId: string, gateId: string, expectedRevision?: string) =>
+    runtimeCall('gate.evaluate', { projectId, runId, gateId, expectedRevision }))
 
   // ── IPC: Artifacts ──
-  ipcMain.handle('artifact:list', async (_e, projectId: string) => runtimeCall('artifact.list', { projectId }))
-  ipcMain.handle('artifact:read', async (_e, projectId: string, filename: string) =>
-    runtimeCall('artifact.read', { projectId, filename }))
+  ipcMain.handle('artifact:list', async (_e, projectId: string, runId: string) => runtimeCall('artifact.list', { projectId, runId }))
+  ipcMain.handle('artifact:read', async (_e, projectId: string, runId: string, filename: string) =>
+    runtimeCall('artifact.read', { projectId, runId, filename }))
 
   // ── IPC: Knowledge ──
   ipcMain.handle('knowledge:list', async (_e, projectId: string, status: string) =>
     runtimeCall('knowledge.list', { projectId, status }))
-  ipcMain.handle('knowledge:review', async (_e, candidateId: number, decision: string) =>
-    runtimeCall('knowledge.review', { candidateId, decision }))
+  ipcMain.handle('knowledge:review', async (_e, projectId: string, candidateId: number, decision: string) =>
+    runtimeCall('knowledge.review', { projectId, candidateId, decision }))
 
   // ── IPC: Execution ──
-  ipcMain.handle('execution:start', async (_e, projectId: string, nodeId: string, role: string) =>
-    runtimeCall('execution.start', { projectId, nodeId, role }))
-  ipcMain.handle('execution:poll', async (_e, sessionId: string) =>
-    runtimeCall('execution.poll', { sessionId }))
-  ipcMain.handle('execution:respond', async (_e, sessionId: string, decision: any) =>
-    runtimeCall('execution.respond', { sessionId, decision }))
-  ipcMain.handle('execution:cancel', async (_e, sessionId: string) =>
-    runtimeCall('execution.cancel', { sessionId }))
+  ipcMain.handle('execution:probe', async (_e, projectId: string) =>
+    runtimeCall('execution.probe', { projectId }))
+  ipcMain.handle('execution:start', async (_e, projectId: string, runId: string, expectedRevision?: string) =>
+    runtimeCall('execution.start', { projectId, runId, expectedRevision }))
+  ipcMain.handle('execution:poll', async (_e, projectId: string, runId: string, sessionId: string) =>
+    runtimeCall('execution.poll', { projectId, runId, sessionId }))
+  ipcMain.handle('execution:respond', async (_e, projectId: string, runId: string, sessionId: string, decision: unknown) =>
+    runtimeCall('execution.respond', { projectId, runId, sessionId, decision }))
+  ipcMain.handle('execution:cancel', async (_e, projectId: string, runId: string, sessionId: string) =>
+    runtimeCall('execution.cancel', { projectId, runId, sessionId }))
 
   // ── IPC: Recovery ──
   ipcMain.handle('recovery:scan', async (_e, projectId: string) => runtimeCall('recovery.scan', { projectId }))

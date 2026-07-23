@@ -7,9 +7,12 @@ import pytest
 
 from harness_runtime.persistence.database import init_db, get_db
 from harness_runtime.projects.service import (
+    get_project,
     import_project,
     list_projects,
+    resolve_project_root,
     unregister_project,
+    update_active_run,
     validate_project,
 )
 
@@ -80,6 +83,40 @@ class TestListAndUnregister:
         pid = result["projectId"]
         assert unregister_project(pid) is True
         assert unregister_project("nonexistent-id") is False
+
+    def test_resolve_registered_project_root(self):
+        root = FIXTURES / "valid-project"
+        project = import_project(str(root))
+
+        assert resolve_project_root(project["projectId"]) == root.resolve()
+        assert get_project(project["projectId"])["path"] == str(root.resolve())
+
+    def test_unknown_project_id_is_rejected(self):
+        with pytest.raises(ValueError, match="PROJECT_NOT_FOUND"):
+            resolve_project_root("missing-project")
+
+    def test_missing_registered_directory_is_rejected(self, tmp_path, setup_db):
+        project_root = tmp_path / "removable-project"
+        project_root.mkdir()
+        (project_root / ".harness").mkdir()
+        project = import_project(str(FIXTURES / "valid-project"))
+
+        db = get_db(setup_db)
+        db.execute("UPDATE projects SET path = ? WHERE id = ?", (str(project_root), project["projectId"]))
+        db.commit()
+        (project_root / ".harness").rmdir()
+        project_root.rmdir()
+
+        with pytest.raises(ValueError, match="PROJECT_PATH_MISSING"):
+            resolve_project_root(project["projectId"])
+
+    def test_update_active_run(self):
+        root = FIXTURES / "valid-project"
+        project = import_project(str(root))
+
+        updated = update_active_run(project["projectId"], "run-002")
+
+        assert updated["activeRunId"] == "run-002"
 
 
 class TestValidateProject:

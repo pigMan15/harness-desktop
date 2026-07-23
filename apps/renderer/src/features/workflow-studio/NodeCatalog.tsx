@@ -26,7 +26,6 @@ export function NodeCatalog({ onAddNode }: Props): React.ReactElement {
   return (
     <div style={{ border:'1px solid #ddd',borderRadius:4,padding:8,background:'#fff' }}>
       <h4 style={{ margin:'0 0 8px 0',fontSize:14 }}>Node Catalog</h4>
-      <p style={{ fontSize:11,color:'#999',margin:'0 0 8px 0' }}>Drag onto canvas or click to add</p>
       {BUILT_IN.map(n => (
         <div key={n.id}
           draggable
@@ -35,7 +34,7 @@ export function NodeCatalog({ onAddNode }: Props): React.ReactElement {
           style={{ padding:'6px 8px',margin:'3px 0',background: n.locked ? '#fff3cd' : '#f0f0f0',borderRadius:4,cursor:'grab',display:'flex',justifyContent:'space-between',alignItems:'center',fontSize:12 }}
         >
           <span><strong>{n.id}</strong> <span style={{color:'#666'}}>({n.role})</span></span>
-          {n.locked && <span title="System minimum node">🔒</span>}
+          {n.locked && <strong title="System minimum node">L</strong>}
         </div>
       ))}
     </div>

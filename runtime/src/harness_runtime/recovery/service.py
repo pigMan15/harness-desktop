@@ -7,6 +7,7 @@ Does NOT auto-complete nodes or mark gates PASS.
 """
 
 import os
+import sys
 from pathlib import Path
 from typing import Optional
 
@@ -23,14 +24,20 @@ class RecoveryResult:
         self.message = message
 
 
-def scan_sessions() -> list[dict]:
+def scan_sessions(project_id: Optional[str] = None) -> list[dict]:
     """Scan all executor sessions and determine recovery status."""
     from ..persistence.database import init_db
     init_db()
     db = get_db()
-    sessions = db.execute(
-        "SELECT * FROM executor_sessions WHERE status = 'active'"
-    ).fetchall()
+    if project_id:
+        sessions = db.execute(
+            "SELECT * FROM executor_sessions WHERE status = 'active' AND project_id = ?",
+            (project_id,),
+        ).fetchall()
+    else:
+        sessions = db.execute(
+            "SELECT * FROM executor_sessions WHERE status = 'active'"
+        ).fetchall()
     results = []
     for row in sessions:
         session_id = row["id"]
@@ -42,12 +49,24 @@ def scan_sessions() -> list[dict]:
                 "pid": pid,
                 "node_id": row["node_id"],
                 "run_id": row["run_id"],
+                "project_id": row["project_id"],
+                "worktree_path": row["worktree_path"],
+                "branch_name": row["branch_name"],
+                "thread_id": row["thread_id"],
+                "turn_id": row["turn_id"],
             })
         elif pid:
             results.append({
                 "session_id": session_id,
                 "status": "orphan",
                 "pid": pid,
+                "node_id": row["node_id"],
+                "run_id": row["run_id"],
+                "project_id": row["project_id"],
+                "worktree_path": row["worktree_path"],
+                "branch_name": row["branch_name"],
+                "thread_id": row["thread_id"],
+                "turn_id": row["turn_id"],
                 "message": "Process not found — may have exited",
             })
             db.execute(
@@ -58,6 +77,13 @@ def scan_sessions() -> list[dict]:
             results.append({
                 "session_id": session_id,
                 "status": "lost",
+                "node_id": row["node_id"],
+                "run_id": row["run_id"],
+                "project_id": row["project_id"],
+                "worktree_path": row["worktree_path"],
+                "branch_name": row["branch_name"],
+                "thread_id": row["thread_id"],
+                "turn_id": row["turn_id"],
                 "message": "No PID recorded — session state unknown",
             })
             db.execute(
@@ -144,6 +170,16 @@ def verify_state_consistency(project_root: Path) -> dict:
 
 def _is_process_alive(pid: int) -> bool:
     """Check if a process exists (cross-platform)."""
+    if pid == os.getpid():
+        return True
+    if sys.platform == "win32":
+        import ctypes
+
+        handle = ctypes.windll.kernel32.OpenProcess(0x1000, False, pid)
+        if not handle:
+            return False
+        ctypes.windll.kernel32.CloseHandle(handle)
+        return True
     try:
         os.kill(pid, 0)
         return True

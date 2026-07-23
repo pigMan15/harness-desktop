@@ -1,4 +1,4 @@
-"""Codex Executor Adapter — spawns Codex as a child process.
+"""Codex Executor Adapter backed by ``codex app-server --stdio``.
 
 Architecture §5.2: probe returns path/version/capabilities with actionable diagnostics.
 start sends current node context (role, rules, phase_dir).
@@ -7,11 +7,13 @@ recover: checks pid + start_time to prevent PID reuse.
 """
 
 import asyncio
+import shutil
+import uuid
+from pathlib import Path
 from typing import AsyncIterable, Optional
 
 from ..base import ExecutorAdapter, ExecutorCapability, ExecutionEvent, ExecutionRequest
-from .events import parse_codex_event
-from .process import CodexProcess
+from .app_server import CodexAppServer
 
 
 class CodexAdapter(ExecutorAdapter):
@@ -22,11 +24,15 @@ class CodexAdapter(ExecutorAdapter):
 
     def __init__(self, codex_path: str = "codex"):
         self._codex_path = codex_path
-        self._sessions: dict[str, CodexProcess] = {}
+        self._resolved_path = ""
+        self._sessions: dict[str, CodexAppServer] = {}
 
     async def probe(self) -> ExecutorCapability:
-        import shutil
-        codex = shutil.which(self._codex_path)
+        configured = Path(self._codex_path).expanduser()
+        if configured.is_absolute() or configured.parent != Path("."):
+            codex = str(configured.resolve()) if configured.is_file() else None
+        else:
+            codex = shutil.which(self._codex_path)
         if not codex:
             return ExecutorCapability(
                 available=False,
@@ -34,15 +40,34 @@ class CodexAdapter(ExecutorAdapter):
                              "Install Codex or configure the path in Settings.",
             )
         try:
-            proc = await asyncio.create_subprocess_exec(
-                codex, "--version",
+            version_proc = await asyncio.create_subprocess_exec(
+                codex,
+                "--version",
                 stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
             )
-            stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=10)
+            stdout, stderr = await asyncio.wait_for(version_proc.communicate(), timeout=10)
+            if version_proc.returncode != 0:
+                raise RuntimeError(stderr.decode(errors="replace").strip() or "--version failed")
             version = stdout.decode().strip()
+            app_server_proc = await asyncio.create_subprocess_exec(
+                codex,
+                "app-server",
+                "--help",
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            _, app_server_stderr = await asyncio.wait_for(
+                app_server_proc.communicate(), timeout=10
+            )
+            if app_server_proc.returncode != 0:
+                raise RuntimeError(
+                    app_server_stderr.decode(errors="replace").strip()
+                    or "app-server capability unavailable"
+                )
+            self._resolved_path = codex
             return ExecutorCapability(
                 available=True, path=codex, version=version,
-                features=["output", "tool_call", "approval", "cancel"],
+                features=["app-server", "output", "tool_call", "approval", "cancel"],
             )
         except Exception as e:
             return ExecutorCapability(
@@ -51,38 +76,76 @@ class CodexAdapter(ExecutorAdapter):
             )
 
     async def start(self, request: ExecutionRequest) -> str:
-        proc = CodexProcess(
-            codex_path=self._codex_path,
-            project_root=request.project_root,
-            run_id=request.run_id,
-            node_id=request.node_id,
-            role_file=request.role_file,
-            phase_dir=request.phase_dir,
+        codex_path = self._resolved_path or shutil.which(self._codex_path)
+        if not codex_path:
+            raise RuntimeError("CODEX_CLI_NOT_FOUND: run execution.probe first")
+
+        role_path = Path(request.role_file)
+        role_instructions = (
+            role_path.read_text(encoding="utf-8") if role_path.is_file() else ""
         )
-        session_id = await proc.start()
-        self._sessions[session_id] = proc
+        rules = "\n".join(f"- {rule}" for rule in request.rules)
+        prompt = (
+            "Execute the specified Harness workflow node.\n"
+            f"Run: {request.run_id}\n"
+            f"Node: {request.node_id}\n"
+            f"Role file: {request.role_file}\n"
+            f"Phase directory: {request.phase_dir}\n"
+            f"Required rules:\n{rules or '- Follow AGENTS.md and the specified Run state.'}\n"
+            "Read the specified Run's authoritative state and required role instructions, perform only this node's work, "
+            "and write all required phase artifacts before reporting completion."
+        )
+        server = CodexAppServer(codex_path, Path(request.project_root))
+        await server.start(prompt, developer_instructions=role_instructions)
+        session_id = f"codex-{uuid.uuid4().hex[:12]}"
+        self._sessions[session_id] = server
         return session_id
 
     async def stream(self, session_id: str) -> AsyncIterable[ExecutionEvent]:
-        proc = self._sessions.get(session_id)
-        if not proc:
+        server = self._sessions.get(session_id)
+        if not server:
             yield ExecutionEvent("error", 0, {"error": f"Session not found: {session_id}"})
             return
-        async for raw in proc.stream_events():
-            yield parse_codex_event(raw)
+        for event in server.poll_events():
+            yield ExecutionEvent(
+                event["type"],
+                event["sequence"],
+                {key: value for key, value in event.items() if key not in {"type", "sequence"}},
+            )
+
+    def poll(self, session_id: str) -> list[dict]:
+        server = self._sessions.get(session_id)
+        return server.poll_events() if server else [
+            {"type": "error", "sequence": 0, "error": f"Session not found: {session_id}"}
+        ]
 
     async def respond(self, session_id: str, decision: dict) -> None:
-        proc = self._sessions.get(session_id)
-        if proc:
-            await proc.send_decision(decision)
+        server = self._sessions.get(session_id)
+        if not server:
+            raise ValueError(f"CODEX_SESSION_NOT_FOUND: {session_id}")
+        request_id = decision.get("requestId")
+        if request_id is None:
+            raise ValueError("CODEX_APPROVAL_REQUEST_ID_REQUIRED")
+        await server.respond(int(request_id), decision.get("decision", ""))
 
     async def cancel(self, session_id: str) -> None:
-        proc = self._sessions.get(session_id)
-        if proc:
-            await proc.cancel()
+        server = self._sessions.get(session_id)
+        if server:
+            await server.interrupt()
+            await server.close()
 
     async def recover(self, session_id: str) -> Optional[dict]:
-        proc = self._sessions.get(session_id)
-        if proc and await proc.is_alive():
-            return {"session_id": session_id, "status": "recovered", "pid": proc.pid}
+        server = self._sessions.get(session_id)
+        if server and server.pid:
+            return {"session_id": session_id, "status": "recovered", "pid": server.pid}
         return None
+
+    def session_info(self, session_id: str) -> dict:
+        server = self._sessions.get(session_id)
+        if not server:
+            return {}
+        return {
+            "pid": server.pid,
+            "threadId": server.thread_id,
+            "turnId": server.turn_id,
+        }

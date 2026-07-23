@@ -115,6 +115,57 @@ harness-desktop/
 | Testing | pytest (176) + Vitest + Playwright |
 | Packaging | PyInstaller + Electron Forge Squirrel.Windows |
 
+## 打包
+
+首选命令：
+
+```powershell
+.\scripts\package-runtime.ps1
+.\scripts\package-desktop.ps1
+```
+
+如果 Windows PowerShell 5 无法执行 `scripts/package-runtime.ps1` 中的 PowerShell 7 语法，或 Electron Forge 在下载/打包阶段遇到 `read ECONNRESET`，可以使用下面这条已验证的 fallback 路径。
+
+```powershell
+# 1. 重新打包 Runtime，必须从 runtime 源码重新生成 exe
+cd runtime
+python -m pip install -e ".[dev]"
+python -m PyInstaller harness-runtime.spec --clean --noconfirm
+cd ..
+
+# 2. 把新 Runtime 放入桌面应用资源
+New-Item -ItemType Directory -Force -Path dist,apps\desktop\resources | Out-Null
+Copy-Item runtime\dist\harness-runtime.exe dist\harness-runtime.exe -Force
+Copy-Item runtime\dist\harness-runtime.exe apps\desktop\resources\harness-runtime.exe -Force
+
+# 3. 使用本地 Electron dist 生成干净的 unpacked 桌面应用
+$env:ELECTRON_OVERRIDE_DIST_PATH = (Resolve-Path "node_modules\electron\dist").Path
+pnpm exec electron-packager apps\desktop "Harness Desktop" `
+  --platform=win32 `
+  --arch=x64 `
+  --electron-version=31.7.7 `
+  --out=dist\desktop-unpacked `
+  --overwrite `
+  --asar `
+  --extra-resource=apps\desktop\resources\harness-runtime.exe `
+  --executable-name="Harness Desktop" `
+  --ignore=out `
+  --ignore=out-fresh `
+  --ignore=node_modules
+
+# 4. 生成 Squirrel.Windows 安装器
+node -e "const { createWindowsInstaller } = require('electron-winstaller'); createWindowsInstaller({ appDirectory: 'dist/desktop-unpacked/Harness Desktop-win32-x64', outputDirectory: 'dist/desktop-installer', authors: 'Harness Desktop', exe: 'Harness Desktop.exe', setupExe: 'Harness Desktop-0.0.0 Setup.exe', noMsi: true, name: 'harness-desktop' }).then(() => console.log('installer ok')).catch((err) => { console.error(err); process.exit(1); });"
+```
+
+成功产物：
+
+- `dist/desktop-installer/Harness Desktop-0.0.0 Setup.exe`
+- `dist/desktop-installer/harness-desktop-0.0.0-full.nupkg`
+- `dist/desktop-installer/RELEASES`
+- `dist/desktop-unpacked/Harness Desktop-win32-x64/Harness Desktop.exe`
+
+注意：不要把新的 package 输出目录放在 `apps/desktop` 源码目录内部，否则旧的 `out/` 可能被打进 `app.asar`，导致安装包异常膨胀。打包后应核对 `dist/desktop-unpacked/Harness Desktop-win32-x64/resources/harness-runtime.exe` 的大小和时间戳，确认它来自本次 runtime 重新打包。
+
 ## 开发阶段
 
 | Phase | Run | 交付 | Tests |

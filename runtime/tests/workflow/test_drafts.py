@@ -1,15 +1,19 @@
 """Tests for Workflow Draft Service (Task 4.1)."""
 
+import hashlib
+import shutil
 import tempfile
 from pathlib import Path
 
 import pytest
+import yaml
 
 from harness_runtime.workflow.drafts import (
     apply_draft,
     compile_draft,
     get_draft,
     list_drafts,
+    preview_structured_draft,
     save_draft,
     semantic_diff,
     simulate_draft,
@@ -107,17 +111,83 @@ class TestApplyDraft:
             yield root
 
     def test_apply_creates_workflow(self, tmp_project):
-        yaml = "nodes: []\nroutes: {}\n"
-        result = apply_draft(tmp_project, yaml)
+        yaml_content = (VALID_WF / "workflow.yaml").read_text(encoding="utf-8")
+        result = apply_draft(tmp_project, yaml_content)
         assert result["success"]
         assert (tmp_project / ".harness" / "workflow.yaml").is_file()
 
+    def test_apply_rejects_invalid_workflow_before_write(self, tmp_project):
+        result = apply_draft(tmp_project, "nodes: []\nroutes: {}\n")
+
+        assert not result["success"]
+        assert result["error"] == "WORKFLOW_VALIDATION_FAILED"
+        assert not (tmp_project / ".harness" / "workflow.yaml").exists()
+
     def test_hash_mismatch(self, tmp_project):
-        yaml1 = "nodes: []\nroutes: {}\n"
-        apply_draft(tmp_project, yaml1)
-        result = apply_draft(tmp_project, yaml1, expected_hash="deadbeef" * 8)
+        yaml_content = (VALID_WF / "workflow.yaml").read_text(encoding="utf-8")
+        apply_draft(tmp_project, yaml_content)
+        result = apply_draft(
+            tmp_project, yaml_content, expected_hash="deadbeef" * 8
+        )
         assert not result["success"]
         assert result["error"] == "HASH_MISMATCH"
+
+    def test_existing_workflow_requires_expected_hash(self, tmp_project):
+        yaml_content = "schema_version: '1.0'\nnodes: []\nroutes: {}\n"
+        (tmp_project / ".harness" / "workflow.yaml").write_text(
+            yaml_content, encoding="utf-8"
+        )
+
+        result = apply_draft(tmp_project, yaml_content)
+
+        assert not result["success"]
+        assert result["error"] == "EXPECTED_HASH_REQUIRED"
+
+
+class TestStructuredPreview:
+    @pytest.fixture
+    def project(self, tmp_path):
+        root = tmp_path / "workflow-project"
+        shutil.copytree(VALID_WF.parent, root)
+        return root
+
+    def test_preview_preserves_unedited_workflow_sections(self, project):
+        workflow_path = project / ".harness" / "workflow.yaml"
+        original_text = workflow_path.read_text(encoding="utf-8")
+        original = yaml.safe_load(original_text)
+        nodes = original["nodes"]
+        route = list(reversed(original["routes"]["FEATURE"]["LOW"]))
+
+        result = preview_structured_draft(project, nodes, "FEATURE", "LOW", route)
+
+        preview = yaml.safe_load(result["yaml"])
+        assert result["success"] is True
+        assert preview["routes"]["FEATURE"]["LOW"] == route
+        assert preview["routes"]["QUERY"] == original["routes"]["QUERY"]
+        assert preview["hard_rules"] == original["hard_rules"]
+        assert preview["failure_recovery"] == original["failure_recovery"]
+        assert preview["gate_meanings"] == original["gate_meanings"]
+        assert result["base_hash"] == hashlib.sha256(original_text.encode()).hexdigest()
+        assert "FEATURE" in result["diff"]["routes"]["changed"]
+        assert workflow_path.read_text(encoding="utf-8") == original_text
+
+    def test_invalid_role_returns_diagnostic_without_writing(self, project):
+        workflow_path = project / ".harness" / "workflow.yaml"
+        original_text = workflow_path.read_text(encoding="utf-8")
+        workflow = yaml.safe_load(original_text)
+        workflow["nodes"][0]["role"] = "missing-role"
+
+        result = preview_structured_draft(
+            project,
+            workflow["nodes"],
+            "FEATURE",
+            "LOW",
+            workflow["routes"]["FEATURE"]["LOW"],
+        )
+
+        assert result["success"] is False
+        assert any(d["code"] == "WORKFLOW_UNKNOWN_ROLE" for d in result["diagnostics"])
+        assert workflow_path.read_text(encoding="utf-8") == original_text
 
 
 class TestVersioning:

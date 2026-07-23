@@ -2,32 +2,23 @@ import React from 'react'
 import { NavLink } from 'react-router-dom'
 
 const NAV = [
-  { to: '/', label: 'Home', icon: '🏠' },
-  { to: '/projects', label: 'Projects', icon: '📁' },
-  { to: '/runs', label: 'Runs', icon: '▶' },
-  { to: '/workflow', label: 'Workflow', icon: '🔀' },
-  { to: '/gates', label: 'Gates', icon: '🛡' },
-  { to: '/artifacts', label: 'Artifacts', icon: '📄' },
-  { to: '/knowledge', label: 'Knowledge', icon: '🧠' },
-  { to: '/execution', label: 'Execution', icon: '⚡' },
-  { to: '/recovery', label: 'Recovery', icon: '🔄' },
+  { to: '/projects', label: 'Projects', icon: 'PR' },
+  { to: '/runs', label: 'Tasks', icon: 'TS' },
+  { to: '/workflow', label: 'Workflow', icon: 'WF' },
+  { to: '/gates', label: 'Gates', icon: 'GT' },
+  { to: '/execution', label: 'Execution', icon: 'EX' },
+  { to: '/artifacts', label: 'Artifacts', icon: 'AR' },
+  { to: '/knowledge', label: 'Knowledge', icon: 'KN' },
+  { to: '/recovery', label: 'Recovery', icon: 'RC' },
 ]
 
 export function Sidebar(): React.ReactElement {
   return (
-    <nav style={{ width: 180, background: '#1e1e2e', color: '#cdd6f4', padding: 16, display: 'flex', flexDirection: 'column', gap: 4 }}>
-      <h3 style={{ margin: '0 0 16px 0', fontSize: 14 }}>Harness Desktop</h3>
-      {NAV.map((n) => (
-        <NavLink
-          key={n.to}
-          to={n.to}
-          end={n.to === '/'}
-          style={({ isActive }) => ({
-            padding: '8px 12px', borderRadius: 6, textDecoration: 'none', color: isActive ? '#fff' : '#a6adc8',
-            background: isActive ? '#45475a' : 'transparent', fontSize: 14,
-          })}
-        >
-          {n.icon} {n.label}
+    <nav className="sidebar">
+      <div className="brand"><strong>H</strong><span>Harness Desktop</span></div>
+      {NAV.map(({ to, label, icon }) => (
+        <NavLink key={to} to={to} className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`} title={label}>
+          <strong style={{ width: 20, fontSize: 10 }}>{icon}</strong><span>{label}</span>
         </NavLink>
       ))}
     </nav>

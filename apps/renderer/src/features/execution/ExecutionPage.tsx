@@ -1,130 +1,124 @@
-import React, { useState, useRef, useEffect } from 'react'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
+import { ProjectRequired, useWorkspace } from '../layout/WorkspaceContext'
 
-interface LogEntry { type: string; sequence: number; content?: string; tool?: string; params?: any; message?: string; category?: string; data?: any; code?: number }
+interface Capability { available: boolean; path?: string; version?: string; features?: string[]; diagnostics?: string }
+interface LogEntry { type: string; sequence: number; content?: string; error?: string; tool?: string; params?: Record<string, unknown>; message?: string; category?: string; requestId?: number; code?: number }
+const DANGEROUS = new Set(['deploy','delete','dangerous_git'])
 
-export function ExecutionPage(): React.ReactElement {
+function ExecutionContent(): React.ReactElement {
+  const { selectedProjectId, activeRun, revision } = useWorkspace()
+  const [capability, setCapability] = useState<Capability>()
   const [logs, setLogs] = useState<LogEntry[]>([])
   const [running, setRunning] = useState(false)
   const [sessionId, setSessionId] = useState('')
-  const [pendingApproval, setPendingApproval] = useState<LogEntry | null>(null)
-  const [secondConfirm, setSecondConfirm] = useState(false)
-  const DANGEROUS = new Set(['deploy','delete','dangerous_git'])
-  const [msg, setMsg] = useState('')
+  const [sessionRunId, setSessionRunId] = useState('')
+  const [pendingApproval, setPendingApproval] = useState<LogEntry>()
+  const [confirmDangerous, setConfirmDangerous] = useState(false)
+  const [message, setMessage] = useState('')
+  const timer = useRef<ReturnType<typeof setInterval>>()
   const logEnd = useRef<HTMLDivElement>(null)
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
-  const runningRef = useRef(false)
 
-  useEffect(() => { logEnd.current?.scrollIntoView({ behavior: 'smooth' }) }, [logs])
-  useEffect(() => () => { if (intervalRef.current) clearInterval(intervalRef.current) }, [])
-
-  async function startExecution() {
-    setLogs([]); setRunning(true); setMsg('Starting...'); setPendingApproval(null)
+  const probe = useCallback(async () => {
+    if (!window.harness) return
+    setMessage('')
     try {
-      const r = await window.harness!.startExecution('local', 'DEVELOPMENT', 'developer')
-      if (r?.sessionId) { setSessionId(r.sessionId); setMsg(''); startPolling(r.sessionId) }
-      else { setRunning(false); setMsg(r?.error || 'Failed to start') }
-    } catch (e: any) { setRunning(false); setMsg(e.message) }
+      const result = await window.harness.probeExecution(selectedProjectId)
+      setCapability(result as unknown as Capability)
+    } catch (cause) { setMessage(cause instanceof Error ? cause.message : 'Codex probe failed') }
+  }, [selectedProjectId])
+
+  useEffect(() => { void probe() }, [probe])
+  useEffect(() => { logEnd.current?.scrollIntoView({ behavior: 'smooth' }) }, [logs])
+  useEffect(() => () => { if (timer.current) clearInterval(timer.current) }, [])
+
+  function beginPolling(id: string, runId: string): void {
+    if (timer.current) clearInterval(timer.current)
+    timer.current = setInterval(() => { void poll(id, runId) }, 500)
   }
 
-  function startPolling(sid: string) {
-    if (intervalRef.current) clearInterval(intervalRef.current)
-    runningRef.current = true
-    intervalRef.current = setInterval(async () => {
-      if (!runningRef.current) { if (intervalRef.current) clearInterval(intervalRef.current); return }
-      try {
-        const events = await window.harness!.pollExecution(sid)
-        if (Array.isArray(events) && events.length > 0) {
-          setLogs(prev => {
-            const existing = new Set(prev.map(e => `${e.type}:${e.sequence}`))
-            const newEvents = events.filter((e: any) => !existing.has(`${e.type}:${e.sequence}`))
-            for (const ev of newEvents) {
-              if (ev.type === 'approval_required') setPendingApproval(ev)
-              if (ev.type === 'exited' || ev.type === 'error') { setRunning(false); runningRef.current = false }
-            }
-            return [...prev, ...newEvents]
-          })
-        }
-      } catch { /* keep polling */ }
-    }, 500)
+  async function poll(id: string, runId: string): Promise<void> {
+    if (!window.harness) return
+    try {
+      const result = await window.harness.pollExecution(selectedProjectId, runId, id)
+      if (!Array.isArray(result) || result.length === 0) return
+      const events = result as LogEntry[]
+      setLogs((current) => {
+        const keys = new Set(current.map((entry) => `${entry.type}:${entry.sequence}`))
+        return [...current, ...events.filter((entry) => !keys.has(`${entry.type}:${entry.sequence}`))]
+      })
+      const approval = events.find((entry) => entry.type === 'approval_required')
+      if (approval) setPendingApproval(approval)
+      if (events.some((entry) => entry.type === 'exited' || entry.type === 'error')) {
+        setRunning(false)
+        if (timer.current) clearInterval(timer.current)
+      }
+    } catch (cause) { setMessage(cause instanceof Error ? cause.message : 'Execution polling failed') }
   }
 
-  function handleRespond(decision: string) {
-    const cat = pendingApproval?.category || pendingApproval?.data?.category || ''
-    if (decision === 'allow_once' && DANGEROUS.has(cat) && !secondConfirm) {
-      setSecondConfirm(true); return
+  async function start(): Promise<void> {
+    if (!window.harness || !activeRun) { setMessage('Select or create an active task first.'); return }
+    setLogs([]); setPendingApproval(undefined); setMessage(''); setRunning(true)
+    try {
+      const runId = activeRun.run_id
+      const result = await window.harness.startExecution(selectedProjectId, runId, revision || activeRun.revision || undefined)
+      if (result.error || !result.sessionId) throw new Error(String(result.error || 'Execution start failed'))
+      const id = String(result.sessionId)
+      setSessionId(id)
+      setSessionRunId(runId)
+      beginPolling(id, runId)
+    } catch (cause) { setRunning(false); setMessage(cause instanceof Error ? cause.message : 'Execution start failed') }
+  }
+
+  async function respond(decision: 'allow_once' | 'allow_session' | 'deny' | 'cancel'): Promise<void> {
+    if (!window.harness || !sessionRunId || pendingApproval?.requestId === undefined) return
+    if (decision === 'allow_once' && DANGEROUS.has(pendingApproval.category || '') && !confirmDangerous) {
+      setConfirmDangerous(true); return
     }
-    respond(decision)
+    try {
+      await window.harness.respondExecution(selectedProjectId, sessionRunId, sessionId, { requestId: pendingApproval.requestId, decision })
+      setPendingApproval(undefined); setConfirmDangerous(false)
+    } catch (cause) { setMessage(cause instanceof Error ? cause.message : 'Approval response failed') }
   }
 
-  async function respond(decision: string) {
-    try { await window.harness!.respondExecution(sessionId, { decision }); setPendingApproval(null); setSecondConfirm(false) } catch { /* */ }
+  async function cancel(): Promise<void> {
+    if (!window.harness || !sessionId || !sessionRunId) return
+    if (timer.current) clearInterval(timer.current)
+    setRunning(false)
+    try { await window.harness.cancelExecution(selectedProjectId, sessionRunId, sessionId) }
+    catch (cause) { setMessage(cause instanceof Error ? cause.message : 'Cancel failed') }
   }
 
-  async function cancel() {
-    runningRef.current = false; setRunning(false)
-    if (intervalRef.current) clearInterval(intervalRef.current)
-    try { await window.harness!.cancelExecution(sessionId) } catch { /* */ }
-  }
-
-  const TYPE_COLORS: Record<string, string> = { output: '#ccc', tool_call: '#64b5f6', approval_required: '#ffb74d', error: '#ef5350', exited: '#81c784' }
-  const APPROVAL_CATEGORIES = ['file','command','network','external','deploy','delete','permission','dangerous_git']
-  const FORBIDDEN = ['bash','sh','zsh','python','python3','py','cmd','powershell','pwsh']
-
-  return (
-    <div style={{ padding: 24 }}>
-      <h2>Execution</h2>
-      <details style={{ marginBottom: 12, fontSize: 12 }}>
-        <summary style={{ cursor: 'pointer', color: '#666' }}>Approval Policy (8 categories)</summary>
-        <div style={{ padding: 8, background: '#fff', border: '1px solid #eee', borderRadius: 4, marginTop: 4 }}>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 8 }}>
-            {APPROVAL_CATEGORIES.map(c => <span key={c} style={{ padding:'2px 8px',background:'#e3f2fd',borderRadius:4 }}>{c}</span>)}
-          </div>
-          <p style={{ margin: 0, color: '#999' }}>Forbidden prefixes: {FORBIDDEN.join(', ')}</p>
-          <p style={{ margin: '4px 0 0 0', color: '#e65100' }}>Deploy/delete/force-push require second confirmation</p>
-        </div>
-      </details>
-      <div style={{ display: 'flex', gap: 8, margin: '12px 0', alignItems: 'center' }}>
-        <button onClick={startExecution} disabled={running}
-          style={{ padding: '8px 16px', background: running ? '#ccc' : '#4caf50', color: '#fff', border: 'none', borderRadius: 6, cursor: running ? 'default' : 'pointer' }}>
-          Start (Fake)
-        </button>
-        <button onClick={cancel} disabled={!running}
-          style={{ padding: '8px 16px', background: running ? '#f44336' : '#ccc', color: '#fff', border: 'none', borderRadius: 6, cursor: running ? 'pointer' : 'default' }}>
-          Cancel
-        </button>
-        {sessionId && <span style={{ fontSize: 11, color: '#999' }}>Session: {sessionId}</span>}
-        {msg && <span style={{ color: '#e65100' }}>{msg}</span>}
-      </div>
-
-      {pendingApproval && (
-        <div style={{ padding: 12, margin: '8px 0', background: secondConfirm ? '#f8d7da' : '#fff3cd', border: `1px solid ${secondConfirm ? '#dc3545' : '#ffc107'}`, borderRadius: 8 }}>
-          <strong>{secondConfirm ? '⚠ SECOND CONFIRMATION REQUIRED' : 'Approval Required'}</strong>
-          {secondConfirm && <p style={{ margin: 4, fontSize: 12, color: '#721c24' }}>This is a dangerous operation ({pendingApproval.category || pendingApproval.data?.category || 'unknown'}). Confirm to proceed.</p>}
-          <p style={{ margin: '4px 0' }}>{pendingApproval.message || pendingApproval.content || JSON.stringify(pendingApproval)}</p>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <button onClick={() => handleRespond('allow_once')} style={{ padding: '6px 16px', background: secondConfirm ? '#dc3545' : '#4caf50', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer' }}>
-              {secondConfirm ? 'Yes, Allow' : 'Allow Once'}
-            </button>
-            <button onClick={() => { respond('deny'); setSecondConfirm(false) }} style={{ padding: '6px 16px', background: '#6c757d', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer' }}>Deny</button>
-            {secondConfirm && <button onClick={() => setSecondConfirm(false)} style={{ padding: '6px 16px', background: '#fff', border: '1px solid #ddd', borderRadius: 4, cursor: 'pointer' }}>Cancel</button>}
-          </div>
-        </div>
-      )}
-
-      <div style={{ background: '#1e1e1e', color: '#d4d4d4', padding: 16, borderRadius: 8, maxHeight: 500, overflow: 'auto', fontFamily: 'monospace', fontSize: 13, lineHeight: 1.6 }}>
-        {logs.length === 0 && <span style={{ color: '#666' }}>Click Start to run a simulated execution with tool calls and approvals.</span>}
-        {logs.map((e, i) => (
-          <div key={i} style={{ color: TYPE_COLORS[e.type] || '#888' }}>
-            <span style={{ color: '#555' }}>[{String(e.sequence).padStart(2, '0')}]</span>
-            <span style={{ fontWeight: 500, marginLeft: 8 }}>{e.type}</span>
-            {e.content && <span> {e.content}</span>}
-            {e.tool && <span> tool={e.tool} params={JSON.stringify(e.params || {})}</span>}
-            {e.message && <span> {e.message}</span>}
-            {e.code !== undefined && <span> code={e.code}</span>}
-          </div>
-        ))}
-        <div ref={logEnd} />
-      </div>
+  return <section className="page">
+    <header className="page-header"><h1>Codex Execution</h1><button className="button icon-button" onClick={() => void probe()} title="Probe Codex">R</button></header>
+    {message && <div className="notice error">{message}</div>}
+    <div className="panel toolbar">
+      <span className={`badge ${capability?.available ? 'success' : 'danger'}`}>{capability?.available ? 'AVAILABLE' : 'UNAVAILABLE'}</span>
+      <strong>{capability?.version || 'Codex not detected'}</strong><span className="mono muted">{capability?.path}</span>
+      {capability?.features?.includes('app-server') && <span className="badge success">APP SERVER</span>}
     </div>
-  )
+    {!capability?.available && capability?.diagnostics && <div className="notice error">{capability.diagnostics}</div>}
+    <div className="actions" style={{ margin: '14px 0' }}>
+      <button className="button primary" disabled={running || !capability?.available || !activeRun} onClick={() => void start()}>&gt; Start</button>
+      <button className="button danger" disabled={!running} onClick={() => void cancel()}>Stop</button>
+      {activeRun && <span className="muted">{activeRun.current_node} as {activeRun.next_role}</span>}
+      {sessionId && <span className="mono muted">{sessionId}</span>}
+      {sessionRunId && <span className="mono muted">Run {sessionRunId}</span>}
+    </div>
+    {pendingApproval && <div className={`notice ${confirmDangerous ? 'error' : ''}`}>
+      <strong>{confirmDangerous ? 'SECOND CONFIRMATION REQUIRED' : `${pendingApproval.category || 'external'} approval`}</strong>
+      <div style={{ margin: '6px 0' }}>{pendingApproval.message}</div>
+      <div className="actions">
+        <button className="button primary" onClick={() => void respond('allow_once')}>{confirmDangerous ? 'Confirm allow' : 'Allow once'}</button>
+        <button className="button" onClick={() => void respond('allow_session')}>Allow session</button>
+        <button className="button danger" onClick={() => void respond('deny')}>Deny</button>
+      </div>
+    </div>}
+    <div className="panel mono" style={{ minHeight: 360, maxHeight: 560, overflow: 'auto', padding: 14, background: '#17181a', color: '#e8eaed', fontSize: 12, lineHeight: 1.65 }}>
+      {logs.length === 0 && <span style={{ color: '#9aa0a6' }}>No execution events.</span>}
+      {logs.map((entry) => <div key={`${entry.type}:${entry.sequence}`}><span style={{ color: '#80868b' }}>{String(entry.sequence).padStart(3, '0')}</span> <strong>{entry.type}</strong> {entry.content || entry.error || entry.message || (entry.tool ? `${entry.tool} ${JSON.stringify(entry.params || {})}` : '')}</div>)}
+      <div ref={logEnd} />
+    </div>
+  </section>
 }
+
+export function ExecutionPage(): React.ReactElement { return <ProjectRequired><ExecutionContent /></ProjectRequired> }

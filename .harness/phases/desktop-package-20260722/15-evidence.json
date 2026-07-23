@@ -1,0 +1,75 @@
+{
+  "run_id": "desktop-package-20260722",
+  "intent": "DEPLOYMENT",
+  "risk": "MEDIUM",
+  "changed_files": [
+    "runtime/dist/harness-runtime.exe",
+    "apps/desktop/resources/harness-runtime.exe",
+    "dist/desktop-unpacked/Harness Desktop-win32-x64/",
+    "dist/desktop-installer/"
+  ],
+  "commands": [
+    {
+      "name": "重新打包 Runtime",
+      "command": "python -m PyInstaller harness-runtime.spec --clean --noconfirm",
+      "cwd": "G:\\Project\\ai\\harness-desktop\\runtime",
+      "exit_code": 0,
+      "result": "通过：重新生成 runtime/dist/harness-runtime.exe，大小 41089408 bytes"
+    },
+    {
+      "name": "Electron Forge 打包尝试",
+      "command": "pnpm --filter @harness/desktop package",
+      "cwd": "G:\\Project\\ai\\harness-desktop",
+      "exit_code": 1,
+      "result": "失败：两次在 packaging 阶段遇到 read ECONNRESET"
+    },
+    {
+      "name": "本地 Electron dist 打包",
+      "command": "pnpm exec electron-packager apps\\desktop \"Harness Desktop\" --platform=win32 --arch=x64 --electron-version=31.7.7 --out=dist\\desktop-unpacked --overwrite --asar --extra-resource=apps\\desktop\\resources\\harness-runtime.exe --executable-name=\"Harness Desktop\" --ignore=out --ignore=out-fresh --ignore=node_modules",
+      "cwd": "G:\\Project\\ai\\harness-desktop",
+      "exit_code": 0,
+      "result": "通过：生成 dist/desktop-unpacked/Harness Desktop-win32-x64"
+    },
+    {
+      "name": "生成 Squirrel 安装器",
+      "command": "node -e createWindowsInstaller",
+      "cwd": "G:\\Project\\ai\\harness-desktop",
+      "exit_code": 0,
+      "result": "通过：生成 Setup.exe、nupkg 和 RELEASES"
+    }
+  ],
+  "gates": {
+    "G1_REQUIREMENTS": "NOT_REQUIRED",
+    "G2_DESIGN": "NOT_REQUIRED",
+    "G3_COMPILE": "NOT_REQUIRED",
+    "G4_UNIT_TEST": "NOT_REQUIRED",
+    "G5_ATDD": "NOT_REQUIRED",
+    "G6_EVIDENCE": "PASS",
+    "G7_PRERELEASE": "PASS",
+    "G8_ACCEPTANCE": "PASS"
+  },
+  "artifacts": [
+    ".harness/phases/desktop-package-20260722/00-intake.md",
+    ".harness/phases/desktop-package-20260722/05-pre-mortem.md",
+    ".harness/phases/desktop-package-20260722/16-prerelease-deployment.md",
+    ".harness/phases/desktop-package-20260722/17-interface-test.md",
+    ".harness/phases/desktop-package-20260722/15-evidence.json",
+    ".harness/phases/desktop-package-20260722/18-acceptance-report.md",
+    ".harness/phases/desktop-package-20260722/19-knowledge-promotion.md"
+  ],
+  "waivers": [
+    {
+      "scope": "真实安装/卸载验证",
+      "reason": "本次用户要求直接打包，未执行安装器交互式安装和卸载。"
+    },
+    {
+      "scope": "代码签名",
+      "reason": "未提供签名证书，本次生成未签名安装包。"
+    }
+  ],
+  "residual_risks": [
+    "Electron Forge 默认打包命令仍受网络 ECONNRESET 影响，本次通过本地 Electron dist 与 electron-winstaller 绕过。",
+    "安装器未做真实 Windows 安装、卸载和升级验证。",
+    "安装包未签名，Windows 可能显示安全提示。"
+  ]
+}

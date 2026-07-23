@@ -82,6 +82,57 @@ harness-desktop/
 | Recovery and Knowledge | Recovery scans/cleanup and reviewed knowledge promotion. |
 | Packaging | PyInstaller spec, runtime packaging script, Electron Forge Squirrel maker. |
 
+## Packaging
+
+Preferred commands:
+
+```powershell
+.\scripts\package-runtime.ps1
+.\scripts\package-desktop.ps1
+```
+
+If Windows PowerShell 5 cannot run PowerShell 7 syntax in `scripts/package-runtime.ps1`, or Electron Forge fails during download/package work with `read ECONNRESET`, use this verified fallback path.
+
+```powershell
+# 1. Rebuild Runtime from source
+cd runtime
+python -m pip install -e ".[dev]"
+python -m PyInstaller harness-runtime.spec --clean --noconfirm
+cd ..
+
+# 2. Copy the fresh Runtime into desktop resources
+New-Item -ItemType Directory -Force -Path dist,apps\desktop\resources | Out-Null
+Copy-Item runtime\dist\harness-runtime.exe dist\harness-runtime.exe -Force
+Copy-Item runtime\dist\harness-runtime.exe apps\desktop\resources\harness-runtime.exe -Force
+
+# 3. Use local Electron dist to create a clean unpacked desktop app
+$env:ELECTRON_OVERRIDE_DIST_PATH = (Resolve-Path "node_modules\electron\dist").Path
+pnpm exec electron-packager apps\desktop "Harness Desktop" `
+  --platform=win32 `
+  --arch=x64 `
+  --electron-version=31.7.7 `
+  --out=dist\desktop-unpacked `
+  --overwrite `
+  --asar `
+  --extra-resource=apps\desktop\resources\harness-runtime.exe `
+  --executable-name="Harness Desktop" `
+  --ignore=out `
+  --ignore=out-fresh `
+  --ignore=node_modules
+
+# 4. Build the Squirrel.Windows installer
+node -e "const { createWindowsInstaller } = require('electron-winstaller'); createWindowsInstaller({ appDirectory: 'dist/desktop-unpacked/Harness Desktop-win32-x64', outputDirectory: 'dist/desktop-installer', authors: 'Harness Desktop', exe: 'Harness Desktop.exe', setupExe: 'Harness Desktop-0.0.0 Setup.exe', noMsi: true, name: 'harness-desktop' }).then(() => console.log('installer ok')).catch((err) => { console.error(err); process.exit(1); });"
+```
+
+Successful outputs:
+
+- `dist/desktop-installer/Harness Desktop-0.0.0 Setup.exe`
+- `dist/desktop-installer/harness-desktop-0.0.0-full.nupkg`
+- `dist/desktop-installer/RELEASES`
+- `dist/desktop-unpacked/Harness Desktop-win32-x64/Harness Desktop.exe`
+
+Do not place the fresh package output under `apps/desktop`; old `out/` directories can be packed into `app.asar` and inflate the installer. After packaging, verify `dist/desktop-unpacked/Harness Desktop-win32-x64/resources/harness-runtime.exe` size and timestamp to ensure it came from the fresh Runtime build.
+
 ## Documentation
 
 - Architecture: `doc/desktop-architecture.md`

@@ -13,7 +13,7 @@ export function RuntimeProvider({ children }: { children: React.ReactNode }) {
       try {
         const r = await window.harness.health()
         if (r?.status === 'healthy') {
-          setState({ ready: true, status: 'healthy', version: { runtime: r.runtime_version, protocol: r.protocol_version } })
+          setState({ ready: true, status: 'healthy', version: { runtime: String(r.runtime_version || ''), protocol: String(r.protocol_version || '') } })
           return
         }
       } catch { /* retry */ }

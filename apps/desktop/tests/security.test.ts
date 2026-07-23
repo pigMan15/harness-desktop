@@ -52,4 +52,14 @@ describe('Preload security', () => {
     // Event channel array must be const (immutable, static allowlist)
     expect(source).toMatch(/VALID_EVENT_CHANNELS/)
   })
+
+  it('preload exposes project-bound run, workflow, gate, and Codex methods', () => {
+    const source = fs.readFileSync(PRELOAD_PATH, 'utf-8')
+    for (const method of ['switchRun', 'pauseRun', 'resumeRun', 'previewWorkflow', 'evaluateGate', 'probeExecution']) {
+      expect(source).toContain(`${method}:`)
+    }
+    expect(source).toContain("ipcRenderer.invoke('execution:poll',p,r,s)")
+    expect(source).toContain("ipcRenderer.invoke('gate:evaluate',p,r,g,rev)")
+    expect(source).not.toContain("ipcRenderer.invoke('gate:evaluate',g,s)")
+  })
 })

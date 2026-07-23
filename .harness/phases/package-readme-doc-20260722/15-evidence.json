@@ -1,0 +1,53 @@
+{
+  "run_id": "package-readme-doc-20260722",
+  "intent": "FEATURE",
+  "risk": "LOW",
+  "changed_files": [
+    "README.md",
+    "README_en.md"
+  ],
+  "commands": [
+    {
+      "name": "README 打包章节检查",
+      "command": "rg -n \"## 打包|## Packaging|ELECTRON_OVERRIDE_DIST_PATH|desktop-installer\" README.md README_en.md",
+      "cwd": "G:\\Project\\ai\\harness-desktop",
+      "exit_code": 0,
+      "result": "通过：中英文 README 均包含打包章节、fallback 环境变量和安装器产物路径"
+    }
+  ],
+  "gates": {
+    "G1_REQUIREMENTS": "PASS",
+    "G2_DESIGN": "PASS",
+    "G3_COMPILE": "NOT_REQUIRED",
+    "G4_UNIT_TEST": "NOT_REQUIRED",
+    "G5_ATDD": "NOT_REQUIRED",
+    "G6_EVIDENCE": "PASS",
+    "G7_PRERELEASE": "NOT_REQUIRED",
+    "G8_ACCEPTANCE": "PASS"
+  },
+  "artifacts": [
+    ".harness/phases/package-readme-doc-20260722/00-intake.md",
+    ".harness/phases/package-readme-doc-20260722/01-requirement-review.md",
+    ".harness/phases/package-readme-doc-20260722/06-implementation-plan.md",
+    ".harness/phases/package-readme-doc-20260722/11-development.md",
+    ".harness/phases/package-readme-doc-20260722/12-compile.md",
+    ".harness/phases/package-readme-doc-20260722/13-unit-test.md",
+    ".harness/phases/package-readme-doc-20260722/15-evidence.json",
+    ".harness/phases/package-readme-doc-20260722/18-acceptance-report.md",
+    ".harness/phases/package-readme-doc-20260722/19-knowledge-promotion.md"
+  ],
+  "waivers": [
+    {
+      "scope": "G3_COMPILE",
+      "reason": "仅 README 文档变更，无编译目标。"
+    },
+    {
+      "scope": "G4_UNIT_TEST",
+      "reason": "仅 README 文档变更，无单元测试目标。"
+    }
+  ],
+  "residual_risks": [
+    "fallback 文档中的 Electron 版本为 31.7.7，后续升级 Electron 时需要同步修改。",
+    "文档记录的安装器生成方式未替代真实安装、卸载、升级和签名验证。"
+  ]
+}

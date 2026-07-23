@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import type { RpcRequest, RpcResponse, RpcError, RuntimeEvent } from '../src/rpc'
+import type { RpcRequest, RpcResponse, RpcError, RuntimeEvent, HarnessApi } from '../src/rpc'
 
 // Valid example payloads matching schemas/rpc.schema.json examples
 const validRequest: RpcRequest = {
@@ -61,5 +61,12 @@ describe('RPC contracts', () => {
     const known = ['StateChanged', 'WorkflowChanged', 'ExecutionOutput', 'ToolCall',
       'ApprovalRequested', 'GateEvaluated', 'ArtifactChanged', 'ExecutorExited', 'RuntimeWarning']
     expect(known).not.toContain('UNKNOWN_EVENT_XYZ')
+  })
+
+  it('defines the project-bound desktop bridge surface', () => {
+    type Method = keyof HarnessApi
+    const methods: Method[] = ['switchRun', 'pauseRun', 'resumeRun', 'previewWorkflow',
+      'evaluateGate', 'probeExecution', 'startExecution', 'pollExecution', 'respondExecution', 'cancelExecution']
+    expect(methods).toHaveLength(10)
   })
 })

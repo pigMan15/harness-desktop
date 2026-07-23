@@ -1,21 +1,25 @@
 import React, { useEffect, useState } from 'react'
+import { ProjectRequired, useWorkspace } from '../layout/WorkspaceContext'
 
-export function ArtifactsPage(): React.ReactElement {
+function ArtifactsContent(): React.ReactElement {
+  const { selectedProjectId, activeRun } = useWorkspace()
   const [files, setFiles] = useState<any[]>([])
   const [selected, setSelected] = useState<any>(null)
   const [msg, setMsg] = useState('')
 
   useEffect(() => {
-    window.harness?.listArtifacts('local').then(r => {
+    if (!activeRun) { setFiles([]); return }
+    window.harness?.listArtifacts(selectedProjectId, activeRun.run_id).then(r => {
       if (Array.isArray(r)) setFiles(r)
       else if (r?.error) setMsg(r.error)
     }).catch((e: any) => setMsg(e.message))
-  }, [])
+  }, [selectedProjectId, activeRun])
 
   async function viewFile(name: string) {
     setMsg('Loading...')
     try {
-      const r = await window.harness!.readArtifact('local', name)
+      if (!activeRun) throw new Error('Select a task first')
+      const r = await window.harness!.readArtifact(selectedProjectId, activeRun.run_id, name)
       if (r && !r.error) { setSelected(r); setMsg('') }
       else setMsg(r?.error || 'Failed')
     } catch (e: any) { setMsg(e.message) }
@@ -56,3 +60,5 @@ export function ArtifactsPage(): React.ReactElement {
     </div>
   )
 }
+
+export function ArtifactsPage(): React.ReactElement { return <ProjectRequired><ArtifactsContent /></ProjectRequired> }

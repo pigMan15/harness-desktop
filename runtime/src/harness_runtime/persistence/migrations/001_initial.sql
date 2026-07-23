@@ -31,6 +31,10 @@ CREATE TABLE IF NOT EXISTS executor_sessions (
     pid INTEGER,
     start_time TEXT,
     status TEXT NOT NULL DEFAULT 'active',
+    worktree_path TEXT,
+    branch_name TEXT,
+    thread_id TEXT,
+    turn_id TEXT,
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 

@@ -25,7 +25,7 @@ export function WorkflowCanvas(): React.ReactElement {
   const flowNodes: Node[] = useMemo(() =>
     nodes.map((n, i) => ({
       id: n.id, position: { x: 100, y: i * 80 + 20 },
-      data: { label: SYSTEM_NODES.has(n.id) ? `🔒 ${n.id}` : n.id, role: n.role },
+      data: { label: n.id, role: n.role },
       type: 'default',
       style: SYSTEM_NODES.has(n.id) ? { background: '#fff3cd', border: '1px solid #ffc107' } : undefined,
     })), [nodes])
@@ -55,7 +55,7 @@ export function WorkflowCanvas(): React.ReactElement {
 
   if (nodes.length === 0) return (
     <div style={{ height:600,display:'flex',alignItems:'center',justifyContent:'center',background:'#fafafa',border:'1px solid #ddd',borderRadius:8,color:'#999' }}>
-      Drag nodes from the catalog or click "View List" to load workflow data.
+      No nodes in this route.
     </div>
   )
 

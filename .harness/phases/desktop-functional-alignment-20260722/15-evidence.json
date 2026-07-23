@@ -1,0 +1,198 @@
+{
+  "run_id": "desktop-functional-alignment-20260722",
+  "intent": "FEATURE",
+  "risk": "MEDIUM",
+  "changed_files": [
+    "runtime/src/harness_runtime/api/app.py",
+    "runtime/src/harness_runtime/projects/service.py",
+    "runtime/src/harness_runtime/runs/service.py",
+    "runtime/src/harness_runtime/runs/worktrees.py",
+    "runtime/src/harness_runtime/persistence/state_store.py",
+    "runtime/src/harness_runtime/persistence/project_lock.py",
+    "runtime/src/harness_runtime/persistence/database.py",
+    "runtime/src/harness_runtime/persistence/migrations/001_initial.sql",
+    "runtime/src/harness_runtime/workflow/drafts.py",
+    "runtime/src/harness_runtime/executors/codex/adapter.py",
+    "runtime/src/harness_runtime/executors/codex/app_server.py",
+    "runtime/src/harness_runtime/recovery/service.py",
+    "packages/contracts/src/rpc.ts",
+    "apps/desktop/src/main/index.ts",
+    "apps/desktop/src/preload/index.ts",
+    "apps/desktop/src/preload/harness-api.ts",
+    "apps/desktop/resources/harness-runtime.exe",
+    "apps/renderer/src/app/harness-api.d.ts",
+    "apps/renderer/src/app/App.tsx",
+    "apps/renderer/src/app/styles.css",
+    "apps/renderer/src/features/layout/WorkspaceContext.tsx",
+    "apps/renderer/src/features/projects/ProjectsPage.tsx",
+    "apps/renderer/src/features/runs/RunsPage.tsx",
+    "apps/renderer/src/features/workflow/WorkflowPage.tsx",
+    "apps/renderer/src/features/gates/GatesPage.tsx",
+    "apps/renderer/src/features/artifacts/ArtifactsPage.tsx",
+    "apps/renderer/src/features/execution/ExecutionPage.tsx",
+    "apps/renderer/src/features/recovery/RecoveryPage.tsx",
+    "runtime/tests/api/test_project_context.py",
+    "runtime/tests/api/test_gate_api.py",
+    "runtime/tests/api/test_artifact_api.py",
+    "runtime/tests/api/test_execution_api.py",
+    "runtime/tests/runs/test_run_service.py",
+    "runtime/tests/runs/test_worktree_manager.py"
+  ],
+  "commands": [
+    {
+      "name": "Python 静态编译",
+      "command": "python -m compileall -q runtime\\src",
+      "cwd": "G:\\Project\\ai\\harness-desktop",
+      "exit_code": 0,
+      "result": "Runtime Python 源码静态编译成功。"
+    },
+    {
+      "name": "三模块类型检查",
+      "command": "tsc --noEmit（Renderer、Desktop、Contracts）",
+      "cwd": "G:\\Project\\ai\\harness-desktop",
+      "exit_code": 0,
+      "result": "三套 TypeScript 配置全部通过。"
+    },
+    {
+      "name": "Renderer 生产构建",
+      "command": "pnpm.cmd --filter @harness/renderer build",
+      "cwd": "G:\\Project\\ai\\harness-desktop",
+      "exit_code": 0,
+      "result": "226 个模块完成转换并生成生产资源。"
+    },
+    {
+      "name": "Runtime 全量单元测试",
+      "command": "python -m pytest runtime\\tests -q --tb=short",
+      "cwd": "G:\\Project\\ai\\harness-desktop",
+      "exit_code": 0,
+      "result": "214 项全部通过，包含双 Run、worktree、Gate、Artifact、Execution 与 Codex 测试。"
+    },
+    {
+      "name": "前端与桌面单元测试",
+      "command": "vitest run（Renderer、Desktop、Contracts）",
+      "cwd": "各模块目录",
+      "exit_code": 0,
+      "result": "Renderer 8 项、Desktop 7 项、Contracts 7 项全部通过。"
+    },
+    {
+      "name": "clean Runtime 构建",
+      "command": "python -m PyInstaller harness-runtime.spec --clean --noconfirm",
+      "cwd": "G:\\Project\\ai\\harness-desktop\\runtime",
+      "exit_code": 0,
+      "result": "从本次源码生成 20,605,604 字节的 harness-runtime.exe。"
+    },
+    {
+      "name": "clean Runtime 启动 smoke",
+      "command": "启动 runtime/dist/harness-runtime.exe 并请求带鉴权的 /health",
+      "cwd": "G:\\Project\\ai\\harness-desktop",
+      "exit_code": 0,
+      "result": "返回 healthy、协议 1.0、Python 3.13.6。"
+    },
+    {
+      "name": "Forge 首次打包",
+      "command": "pnpm --filter @harness/desktop package",
+      "cwd": "G:\\Project\\ai\\harness-desktop",
+      "exit_code": 1,
+      "result": "首次缺少子进程 Node PATH；补 PATH 后远端 Electron 下载先被沙箱 EACCES 拦截，联网重试又遇到 ECONNRESET，均已保留为失败证据。"
+    },
+    {
+      "name": "离线 Electron unpacked 打包",
+      "command": "electron-packager --electron-zip-dir=dist-functional-alignment-20260723/electron-zips ...",
+      "cwd": "G:\\Project\\ai\\harness-desktop",
+      "exit_code": 0,
+      "result": "使用本地 Electron 31.7.7 zip 生成新的 Harness Desktop-win32-x64，不复用 out-fresh。"
+    },
+    {
+      "name": "Squirrel Windows 安装包",
+      "command": "electron-winstaller createWindowsInstaller(...) ",
+      "cwd": "G:\\Project\\ai\\harness-desktop",
+      "exit_code": 0,
+      "result": "生成 Setup.exe、full.nupkg 和 RELEASES；首次因不完整 unpacked 主 exe 不是 PE 而失败，重新完整打包后成功。"
+    },
+    {
+      "name": "安装包 Runtime 一致性",
+      "command": "读取 full.nupkg 中 lib/net45/resources/harness-runtime.exe 并计算 SHA-256",
+      "cwd": "G:\\Project\\ai\\harness-desktop",
+      "exit_code": 0,
+      "result": "nupkg 内 Runtime 与 clean source hash 完全一致。"
+    },
+    {
+      "name": "新 unpacked 桌面进程 smoke",
+      "command": "短暂启动 Harness Desktop.exe，检查 Electron 与 bundled Runtime 进程后按精确路径关闭",
+      "cwd": "G:\\Project\\ai\\harness-desktop",
+      "exit_code": 0,
+      "result": "4 个 Electron 进程和 1 个 bundled Runtime 进程正常存活。"
+    },
+    {
+      "name": "包内 Runtime 主场景",
+      "command": "通过包内 Runtime API 执行项目导入、双 Run 创建、Workflow、Gate、Artifact、Codex probe",
+      "cwd": "当前 phase_dir 临时项目副本",
+      "exit_code": 0,
+      "result": "项目导入、两个 Run、22 个 Workflow 节点、12 个编译节点和指定 Run Gate/Artifact 调用均成功；Codex 对不可执行 WindowsApps 路径返回 unavailable。"
+    },
+    {
+      "name": "Playwright 场景检查",
+      "command": "PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=系统 Edge；pnpm test:e2e",
+      "cwd": "G:\\Project\\ai\\harness-desktop",
+      "exit_code": 0,
+      "result": "2 项全部通过；首次因未安装 Playwright 自带 Chromium 为 1 通过、1 环境失败，改用配置支持的系统 Edge 后通过。"
+    }
+  ],
+  "gates": {
+    "G1_REQUIREMENTS": "PASS",
+    "G2_DESIGN": "PASS",
+    "G3_COMPILE": "PASS",
+    "G4_UNIT_TEST": "PASS",
+    "G5_ATDD": "NOT_REQUIRED",
+    "G6_EVIDENCE": "PASS",
+    "G7_PRERELEASE": "NOT_REQUIRED",
+    "G8_ACCEPTANCE": "NOT_RUN"
+  },
+  "artifacts": [
+    {
+      "path": "runtime/dist/harness-runtime.exe",
+      "size": 20605604,
+      "sha256": "9E90B9E1FB8B4FFA971E58F2E91BD84C3C9C32FF76D8F315D292885F0BDFAD3B"
+    },
+    {
+      "path": "dist-functional-alignment-20260723/desktop-unpacked/Harness Desktop-win32-x64/Harness Desktop.exe",
+      "size": 180850176,
+      "sha256": "77C7C57955EC5636711A8B4872AC3AED3E9B97C43EB1871616AF9EFBA322CD3C"
+    },
+    {
+      "path": "dist-functional-alignment-20260723/desktop-installer/Harness Desktop-0.0.0 Setup.exe",
+      "size": 148981248,
+      "sha256": "46182289971F97B8A010CC40889A8EDE5ECD31C1154E24B0D590B3AC65878208"
+    },
+    {
+      "path": "dist-functional-alignment-20260723/desktop-installer/harness-desktop-0.0.0-full.nupkg",
+      "size": 148184827,
+      "sha256": "1A7ED816B03A79D9503FBFBD4DADEF13222CDBC9683132B437DA41C82C6A8FA5"
+    },
+    {
+      "path": ".harness/phases/desktop-functional-alignment-20260722/packaged-runtime-scenario.json",
+      "description": "包内 Runtime 主路径场景结果。"
+    }
+  ],
+  "waivers": [
+    {
+      "scope": "G5_ATDD",
+      "reason": "FEATURE/MEDIUM 路由不要求 ATDD 节点；已额外执行双 Run 集成场景、包内 Runtime API 场景和 Playwright 检查。"
+    },
+    {
+      "scope": "G7_PRERELEASE",
+      "reason": "当前路由不包含预发布部署与接口测试节点；本地 unpacked 与安装包构建已完成。"
+    },
+    {
+      "scope": "Windows 代码签名",
+      "reason": "签名和干净虚拟机升级/卸载验证属于已确认非目标。"
+    }
+  ],
+  "residual_risks": [
+    "本机 Codex 位于 WindowsApps 且外部执行被拒绝；Runtime 正确报告 unavailable，实际使用前需配置一个可由桌面进程执行的 Codex CLI 路径。",
+    "安装包未签名，Windows 可能显示未知发布者提示。",
+    "Playwright 使用系统 Edge 验证；未下载 Playwright 自带 Chromium。",
+    "FastAPI TestClient 存在 Starlette/httpx2 弃用警告，后续依赖升级需处理。",
+    "未在干净 Windows 虚拟机执行安装、升级和卸载矩阵。"
+  ]
+}

@@ -107,6 +107,129 @@ def simulate_draft(yaml_content: str, intent: str, risk: str) -> dict:
         return {"error": str(e)}
 
 
+def validate_draft_content(yaml_content: str, project_root: Optional[Path] = None) -> dict:
+    """Validate the complete workflow before any project file replacement."""
+    try:
+        wf_dict = yaml.safe_load(yaml_content)
+        if not isinstance(wf_dict, dict):
+            raise ValueError("workflow.yaml must be a mapping")
+        from ..protocol.models import WorkflowDefinition
+        from ..protocol.validator import validate_workflow_deep
+
+        workflow = WorkflowDefinition(**wf_dict)
+        agents_dir = project_root / ".harness" / "agents" if project_root else None
+        diagnostics = validate_workflow_deep(workflow, agents_dir=agents_dir)
+        diagnostic_dicts = [d.to_dict() for d in diagnostics]
+        for intent, risk_routes in workflow.routes.items():
+            for risk in risk_routes:
+                try:
+                    compile_workflow(workflow, intent, risk)
+                except ValueError as exc:
+                    diagnostic_dicts.append(
+                        {
+                            "code": "WORKFLOW_COMPILE_FAILED",
+                            "severity": "error",
+                            "pointer": f"/routes/{intent}/{risk}",
+                            "message": str(exc),
+                        }
+                    )
+        return {
+            "success": not any(d["severity"] == "error" for d in diagnostic_dicts),
+            "diagnostics": diagnostic_dicts,
+        }
+    except Exception as exc:
+        return {
+            "success": False,
+            "diagnostics": [
+                {
+                    "code": "WORKFLOW_VALIDATION_FAILED",
+                    "severity": "error",
+                    "pointer": "/",
+                    "message": str(exc),
+                }
+            ],
+        }
+
+
+def preview_structured_draft(
+    project_root: Path,
+    nodes: list[dict],
+    intent: str,
+    risk: str,
+    route: list[str],
+) -> dict:
+    """Merge one edited route into the complete workflow and compile it without writing."""
+    wf_path = project_root / ".harness" / "workflow.yaml"
+    if not wf_path.is_file():
+        return {
+            "success": False,
+            "error": "WORKFLOW_MISSING",
+            "diagnostics": [],
+        }
+
+    original_yaml = wf_path.read_text(encoding="utf-8")
+    base_hash = hashlib.sha256(original_yaml.encode("utf-8")).hexdigest()
+    try:
+        merged = yaml.safe_load(original_yaml) or {}
+        if not isinstance(merged, dict):
+            raise ValueError("workflow.yaml must be a mapping")
+
+        # Renderer 只提交节点目录和当前路线；其余路线与安全规则始终由 Runtime 保留。
+        merged["nodes"] = nodes
+        routes = merged.setdefault("routes", {})
+        intent_routes = routes.setdefault(intent, {})
+        intent_routes[risk] = route
+        preview_yaml = yaml.safe_dump(
+            merged,
+            allow_unicode=True,
+            sort_keys=False,
+            default_flow_style=False,
+        )
+
+        from ..protocol.models import WorkflowDefinition
+        from ..protocol.validator import validate_workflow_deep
+
+        workflow = WorkflowDefinition(**merged)
+        diagnostics = validate_workflow_deep(
+            workflow,
+            agents_dir=project_root / ".harness" / "agents",
+        )
+        diagnostic_dicts = [d.to_dict() for d in diagnostics]
+        if any(d.severity == "error" for d in diagnostics):
+            return {
+                "success": False,
+                "error": "WORKFLOW_VALIDATION_FAILED",
+                "diagnostics": diagnostic_dicts,
+                "base_hash": base_hash,
+            }
+
+        compiled = compile_workflow(workflow, intent, risk)
+        return {
+            "success": True,
+            "yaml": preview_yaml,
+            "base_hash": base_hash,
+            "compiled": compiled.to_dict(),
+            "diagnostics": diagnostic_dicts + [
+                d.to_dict() for d in compiled.diagnostics
+            ],
+            "diff": semantic_diff(original_yaml, preview_yaml),
+        }
+    except Exception as exc:
+        return {
+            "success": False,
+            "error": str(exc),
+            "diagnostics": [
+                {
+                    "code": "WORKFLOW_PREVIEW_FAILED",
+                    "severity": "error",
+                    "pointer": "/",
+                    "message": str(exc),
+                }
+            ],
+            "base_hash": base_hash,
+        }
+
+
 def semantic_diff(old_yaml: str, new_yaml: str) -> dict:
     """Generate a semantic diff between two workflow YAMLs."""
     try:
@@ -150,12 +273,23 @@ def apply_draft(project_root: Path, yaml_content: str, expected_hash: Optional[s
     new_hash = hashlib.sha256(yaml_content.encode()).hexdigest()
 
     # Read current and verify hash
+    if wf_path.is_file() and not expected_hash:
+        return {"success": False, "error": "EXPECTED_HASH_REQUIRED"}
     if wf_path.is_file() and expected_hash:
         with open(wf_path, "rb") as f:
             current_hash = hashlib.sha256(f.read()).hexdigest()
         if current_hash != expected_hash:
             return {"success": False, "error": "HASH_MISMATCH",
                     "current_hash": current_hash, "expected_hash": expected_hash}
+
+    # Apply 不能信任 Renderer 的 Preview 结果，落盘前必须独立重做完整校验。
+    validation = validate_draft_content(yaml_content, project_root)
+    if not validation["success"]:
+        return {
+            "success": False,
+            "error": "WORKFLOW_VALIDATION_FAILED",
+            "diagnostics": validation["diagnostics"],
+        }
 
     # Apply with project lock
     try:

@@ -5,6 +5,7 @@ Windows: 使用 lockfile 方式（兼容性最好，不依赖 msvcrt）。
 """
 
 import os
+import sys
 import time
 from pathlib import Path
 
@@ -21,8 +22,8 @@ class ProjectLock:
     Architecture §10: 超时返回 PROJECT_LOCK_TIMEOUT。
     """
 
-    def __init__(self, project_path: Path, timeout: float = 5.0):
-        self._lockfile = project_path / ".harness" / ".lock"
+    def __init__(self, project_path: Path, timeout: float = 5.0, lockfile: Path | None = None):
+        self._lockfile = lockfile or project_path / ".harness" / ".lock"
         self._timeout = timeout
         self._fd = None
 
@@ -64,12 +65,7 @@ class ProjectLock:
             with open(self._lockfile, "r") as f:
                 pid_str = f.read().strip()
             pid = int(pid_str)
-            # Check if process still exists (Windows-compatible)
-            try:
-                os.kill(pid, 0)
-                return False  # Process exists
-            except OSError:
-                return True  # Process does not exist
+            return not _process_exists(pid)
         except (FileNotFoundError, ValueError):
             return True
 
@@ -87,4 +83,26 @@ class ProjectLock:
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.release()
+        return False
+
+
+def _process_exists(pid: int) -> bool:
+    """Probe a PID without sending a signal on Windows."""
+    if pid == os.getpid():
+        return True
+    if sys.platform == "win32":
+        import ctypes
+
+        process_query_limited_information = 0x1000
+        handle = ctypes.windll.kernel32.OpenProcess(
+            process_query_limited_information, False, pid
+        )
+        if not handle:
+            return False
+        ctypes.windll.kernel32.CloseHandle(handle)
+        return True
+    try:
+        os.kill(pid, 0)
+        return True
+    except OSError:
         return False

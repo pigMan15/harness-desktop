@@ -1,0 +1,191 @@
+{
+  "run_id": "project-import-no-response-20260723",
+  "intent": "BUG_FIX",
+  "risk": "MEDIUM",
+  "changed_files": [
+    "apps/desktop/src/main/index.ts",
+    "apps/desktop/src/main/project-import.ts",
+    "apps/desktop/tests/project-import.test.ts",
+    "apps/renderer/src/features/projects/ProjectsPage.tsx",
+    "apps/renderer/src/features/projects/project-import.ts",
+    "apps/renderer/src/features/projects/project-import.test.ts",
+    "apps/renderer/src/app/styles.css"
+  ],
+  "commands": [
+    {
+      "name": "Desktop TDD 初始红灯",
+      "command": "pnpm.cmd --filter @harness/desktop test -- project-import.test.ts",
+      "cwd": "G:\\Project\\ai\\harness-desktop",
+      "exit_code": 1,
+      "result": "工作区 Node PATH 修正后，测试因 ../src/main/project-import 不存在而失败，符合新增 handler 前的预期。"
+    },
+    {
+      "name": "Renderer TDD 初始红灯",
+      "command": "pnpm.cmd --filter @harness/renderer test -- project-import.test.ts",
+      "cwd": "G:\\Project\\ai\\harness-desktop",
+      "exit_code": 1,
+      "result": "测试因 ./project-import 不存在而失败，符合新增导入流程前的预期。"
+    },
+    {
+      "name": "Desktop 全量测试",
+      "command": "pnpm.cmd --filter @harness/desktop test",
+      "cwd": "G:\\Project\\ai\\harness-desktop",
+      "exit_code": 0,
+      "result": "2 个测试文件、12 项通过；包含直接路径、dialog 成功、取消、无窗口、异常和空选择。"
+    },
+    {
+      "name": "Renderer 全量测试",
+      "command": "pnpm.cmd --filter @harness/renderer test",
+      "cwd": "G:\\Project\\ai\\harness-desktop",
+      "exit_code": 0,
+      "result": "4 个测试文件、12 项通过；包含成功顺序、取消、Runtime 错误、IPC 异常和页面接线。"
+    },
+    {
+      "name": "Contracts 回归测试",
+      "command": "pnpm.cmd --filter @harness/contracts test",
+      "cwd": "G:\\Project\\ai\\harness-desktop",
+      "exit_code": 0,
+      "result": "1 个测试文件、7 项通过。"
+    },
+    {
+      "name": "Runtime 项目聚焦测试首次尝试",
+      "command": "python -m pytest runtime/tests/projects runtime/tests/api/test_project_context.py -q --tb=short",
+      "cwd": "G:\\Project\\ai\\harness-desktop",
+      "exit_code": 1,
+      "result": "17 项均在 fixture setup 前因默认 %TEMP%/pytest-of-15330 无访问权限报错，不是业务断言失败。"
+    },
+    {
+      "name": "Runtime 项目聚焦测试重试",
+      "command": "python -m pytest runtime/tests/projects runtime/tests/api/test_project_context.py -q --tb=short --basetemp <phase-dir>/pytest-unit -p no:cacheprovider",
+      "cwd": "G:\\Project\\ai\\harness-desktop",
+      "exit_code": 0,
+      "result": "17 项全部通过，确认项目注册与显式项目上下文无 Python 回归。"
+    },
+    {
+      "name": "Desktop 类型检查",
+      "command": "tsc --noEmit -p apps/desktop/tsconfig.json",
+      "cwd": "G:\\Project\\ai\\harness-desktop",
+      "exit_code": 0,
+      "result": "Desktop Main 与 Preload 类型检查通过。"
+    },
+    {
+      "name": "Renderer 类型检查",
+      "command": "tsc --noEmit -p apps/renderer/tsconfig.json",
+      "cwd": "G:\\Project\\ai\\harness-desktop",
+      "exit_code": 0,
+      "result": "Renderer 类型检查通过。"
+    },
+    {
+      "name": "Renderer 生产构建",
+      "command": "pnpm.cmd --filter @harness/renderer build",
+      "cwd": "G:\\Project\\ai\\harness-desktop",
+      "exit_code": 0,
+      "result": "227 个模块完成转换并生成生产资源。"
+    },
+    {
+      "name": "离线桌面打包第一次尝试",
+      "command": "Vite 显式入口构建 + electron-packager（v1）",
+      "cwd": "G:\\Project\\ai\\harness-desktop",
+      "exit_code": 1,
+      "result": "直接 Vite 构建未注入 Forge 的 MAIN_WINDOW_VITE_* 常量，包内主进程无法创建 Renderer；失败包保留在 dist-project-import-fix-20260723。"
+    },
+    {
+      "name": "离线桌面打包第二次尝试",
+      "command": "Vite 注入生产常量 + electron-packager（v2）",
+      "cwd": "G:\\Project\\ai\\harness-desktop",
+      "exit_code": 1,
+      "result": "主进程 bundle 为 ESM，而桌面 package 未声明 type=module；启动日志明确提示模块格式错误，失败包保留在 dist-project-import-fix-20260723-v2。"
+    },
+    {
+      "name": "离线桌面打包最终构建",
+      "command": "Vite API 注入生产常量与 CJS format；electron-packager 使用本地 Electron 31.7.7 zip 输出 v3",
+      "cwd": "G:\\Project\\ai\\harness-desktop",
+      "exit_code": 0,
+      "result": "生成新的 v3 unpacked 应用；app.asar 中 Main 为 CJS，包含新 import handler，Renderer 包含 Importing 和 cancelled 文案。"
+    },
+    {
+      "name": "Squirrel 安装器首次权限尝试",
+      "command": "electron-winstaller createWindowsInstaller(...) ",
+      "cwd": "G:\\Project\\ai\\harness-desktop",
+      "exit_code": 1,
+      "result": "沙箱内读取用户 NuGet.Config 被拒绝；受控提升后同一工具成功，最终 v3 安装器退出码 0。"
+    },
+    {
+      "name": "打包应用项目导入 smoke",
+      "command": "node <phase-dir>/packaged-import-smoke.cjs <v3-exe> <valid-project> <result-json>",
+      "cwd": "G:\\Project\\ai\\harness-desktop",
+      "exit_code": 0,
+      "result": "真实启动 v3 Electron 与 bundled Runtime；第 5 次有界启动重试后导入 valid-project，项目返回 healthy、出现在 UI 列表并显示 Selected；不存在路径返回明确错误。"
+    },
+    {
+      "name": "系统目录对话框自动化尝试",
+      "command": "Playwright Electron 覆盖 dialog.showOpenDialog 后点击 Import project",
+      "cwd": "G:\\Project\\ai\\harness-desktop",
+      "exit_code": 1,
+      "result": "系统模态对话框未能被 Playwright 稳定替换，自动化阻塞；未将该尝试记为通过，dialog 分支由 Desktop 5 项单元测试覆盖。"
+    }
+  ],
+  "gates": {
+    "G1_REQUIREMENTS": "PASS",
+    "G2_DESIGN": "PASS",
+    "G3_COMPILE": "PASS",
+    "G4_UNIT_TEST": "PASS",
+    "G5_ATDD": "NOT_REQUIRED",
+    "G6_EVIDENCE": "PASS",
+    "G7_PRERELEASE": "NOT_REQUIRED",
+    "G8_ACCEPTANCE": "NOT_RUN"
+  },
+  "artifacts": [
+    {
+      "path": "dist-project-import-fix-20260723-v3/desktop-unpacked/Harness Desktop-win32-x64/Harness Desktop.exe",
+      "size": 180850176,
+      "sha256": "46147938582F572F4A804F0DE5F6674BE735B7A0570CEF12E3045AC261A0C9CD"
+    },
+    {
+      "path": "dist-project-import-fix-20260723-v3/desktop-unpacked/Harness Desktop-win32-x64/resources/app.asar",
+      "size": 21081836,
+      "sha256": "DC2FB8C4A781545B25E8FDF80A2A438A8977ABA932F47D9A34C636DD2D4F9283"
+    },
+    {
+      "path": "dist-project-import-fix-20260723-v3/desktop-installer/Harness Desktop-0.0.0 Setup.exe",
+      "size": 148983296,
+      "sha256": "1EDA9182EAC5ED83ECC8AA8BD47EB38B63B77B751158B49DFAD9FE55FE1F6F4C"
+    },
+    {
+      "path": "dist-project-import-fix-20260723-v3/desktop-installer/harness-desktop-0.0.0-full.nupkg",
+      "size": 148187014,
+      "sha256": "7CF43BCB5BFE9D881DD44301909E76298261F7C9B09713E0FBE760231E709508"
+    },
+    {
+      "path": "dist-project-import-fix-20260723-v3/desktop-unpacked/Harness Desktop-win32-x64/resources/harness-runtime.exe",
+      "size": 20605604,
+      "sha256": "9E90B9E1FB8B4FFA971E58F2E91BD84C3C9C32FF76D8F315D292885F0BDFAD3B"
+    },
+    {
+      "path": ".harness/phases/project-import-no-response-20260723/packaged-import-smoke.json",
+      "description": "v3 打包应用显式项目导入、错误诊断、列表刷新和选择结果。"
+    }
+  ],
+  "waivers": [
+    {
+      "scope": "G5_ATDD",
+      "reason": "BUG_FIX/MEDIUM 路线不包含 ATDD；仍额外执行了真实 v3 Electron + bundled Runtime 项目导入 smoke。"
+    },
+    {
+      "scope": "G7_PRERELEASE",
+      "reason": "当前路线不包含预发布部署；已生成并验证本地 Windows unpacked 与安装器。"
+    },
+    {
+      "scope": "原生目录对话框键鼠自动化",
+      "reason": "Playwright 无法稳定控制 Electron 的 Windows 系统模态目录对话框；Main handler 的选择、取消和异常分支由可注入的 5 项单元测试覆盖，打包应用通过显式路径验证后续 IPC/Runtime/UI 链路。"
+    }
+  ],
+  "residual_risks": [
+    "尚未在真实键鼠自动化中选择 Windows 原生目录对话框；需要人工点击最终安装包再做一次视觉确认。",
+    "packaged smoke 在 Runtime 启动阶段遇到 4 次 Runtime not started，第 5 次成功；页面现在会显示该错误，但后续可考虑在 Runtime ready 前禁用导入按钮。",
+    "Playwright 关闭打包应用的 5 秒兜底可能留下 bundled Runtime 进程，本次已按精确 PID 清理；正常用户关闭窗口由 app window-all-closed 调用 supervisor.shutdown。",
+    "安装包未进行代码签名，也未在干净 Windows VM 执行安装、升级、卸载矩阵。",
+    "Vite 输出 CJS Node API 弃用警告，后续工具链升级需要处理。",
+    "v1/v2 失败包为审计保留，不是交付物；最终交付物仅为 dist-project-import-fix-20260723-v3。"
+  ]
+}

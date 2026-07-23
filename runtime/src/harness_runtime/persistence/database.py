@@ -26,6 +26,11 @@ def init_db(db_path: Optional[Path] = None) -> sqlite3.Connection:
     """Initialize the database schema (idempotent — uses IF NOT EXISTS)."""
     conn = get_db(db_path)
     conn.executescript(_SCHEMA_SQL)
+    existing = {row[1] for row in conn.execute("PRAGMA table_info(executor_sessions)")}
+    # SQLite 的 IF NOT EXISTS 不会补列，启动时做轻量兼容迁移，保留已有 session 数据。
+    for name in ("worktree_path", "branch_name", "thread_id", "turn_id"):
+        if name not in existing:
+            conn.execute(f"ALTER TABLE executor_sessions ADD COLUMN {name} TEXT")
     conn.commit()
     return conn
 
@@ -61,6 +66,10 @@ CREATE TABLE IF NOT EXISTS executor_sessions (
     pid INTEGER,
     start_time TEXT,
     status TEXT NOT NULL DEFAULT 'active',
+    worktree_path TEXT,
+    branch_name TEXT,
+    thread_id TEXT,
+    turn_id TEXT,
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
@@ -83,4 +92,5 @@ CREATE TABLE IF NOT EXISTS request_dedup (
 
 CREATE INDEX IF NOT EXISTS idx_audit_project_run ON audit_events(project_id, run_id);
 CREATE INDEX IF NOT EXISTS idx_sessions_project ON executor_sessions(project_id, status);
+CREATE INDEX IF NOT EXISTS idx_sessions_project_run ON executor_sessions(project_id, run_id, status);
 """

@@ -1,78 +1,75 @@
-import React, { useEffect, useState } from 'react'
+import React, { useState } from 'react'
+import type { ProjectSummary } from '../../app/harness-api'
+import { useWorkspace } from '../layout/WorkspaceContext'
+import { runProjectImport } from './project-import'
 
-interface Project { projectId: string; name: string; path: string; health: string; protocolVersion: string }
-
-// Retry helper — Runtime may still be starting
-async function call(fn: () => Promise<any>, retries = 5): Promise<any> {
-  for (let i = 0; i < retries; i++) {
-    try {
-      const r = await fn()
-      if (r && !r.error) return r
-      if (r?.error === 'Runtime not started') { await new Promise(r => setTimeout(r, 1000)); continue }
-      return r
-    } catch { await new Promise(r => setTimeout(r, 1000)) }
-  }
-  return null
+interface Notice {
+  kind: 'info' | 'success' | 'error'
+  message: string
 }
 
 export function ProjectsPage(): React.ReactElement {
-  const [projects, setProjects] = useState<Project[]>([])
-  const [status, setStatus] = useState('loading')
-  const [err, setErr] = useState('')
+  const { projects, selectedProjectId, loading, error, refreshProjects, selectProject } = useWorkspace()
+  const [notice, setNotice] = useState<Notice>()
+  const [importing, setImporting] = useState(false)
 
-  useEffect(() => { loadProjects() }, [])
-
-  async function loadProjects() {
-    setStatus('loading'); setErr('')
-    const result = await call(() => window.harness!.listProjects())
-    if (Array.isArray(result) && result.length > 0) {
-      setProjects(result); setStatus('ok'); return
+  async function importProject(): Promise<void> {
+    if (!window.harness) return
+    setImporting(true)
+    setNotice(undefined)
+    try {
+      const result = await runProjectImport(window.harness.importProject, refreshProjects, selectProject)
+      setNotice({
+        kind: result.status === 'cancelled' ? 'info' : result.status,
+        message: result.message,
+      })
+    } catch (cause) {
+      setNotice({ kind: 'error', message: cause instanceof Error ? cause.message : 'Import failed' })
+    } finally {
+      setImporting(false)
     }
-    // Try auto-import
-    const r2 = await call(() => window.harness!.importProject('.'))
-    if (r2 && !r2.error) {
-      const r3 = await call(() => window.harness!.listProjects())
-      if (Array.isArray(r3) && r3.length > 0) { setProjects(r3); setStatus('ok'); return }
-    }
-    setStatus('empty')
-    if (result?.error) setErr(result.error)
-    else if (r2?.error) setErr(r2.error)
   }
 
-  async function handleImport() {
-    setStatus('loading'); setErr('')
-    const r = await call(() => window.harness!.importProject('__dialog__'))
-    if (r && !r.error) await loadProjects()
-    else { setStatus('ok'); if (r?.error) setErr(r.error) }
+  async function choose(project: ProjectSummary): Promise<void> {
+    setNotice(undefined)
+    try { await selectProject(project.projectId) }
+    catch (cause) { setNotice({ kind: 'error', message: cause instanceof Error ? cause.message : 'Selection failed' }) }
   }
 
   return (
-    <div style={{ padding: 24 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <h2>Projects</h2>
-        <button onClick={handleImport} style={{ padding: '8px 16px', cursor: 'pointer', background: '#4caf50', color: '#fff', border: 'none', borderRadius: 6 }}>
-          + Import Project
-        </button>
-      </div>
-      {err && <p style={{ color: '#c62828', background: '#ffebee', padding: 8, borderRadius: 4 }}>{err}</p>}
-      {status === 'loading' && <p>Loading...</p>}
-      {status === 'empty' && <p>No projects. Click "+ Import Project" to select a .harness project folder.</p>}
-      {status === 'ok' && (
-        <table style={{ width: '100%', marginTop: 16, borderCollapse: 'collapse' }}>
-          <thead><tr style={{ textAlign: 'left', borderBottom: '1px solid #ddd' }}>
-            <th style={{ padding: 8 }}>Name</th><th style={{ padding: 8 }}>Path</th>
-            <th style={{ padding: 8 }}>Health</th><th style={{ padding: 8 }}>Protocol</th>
-          </tr></thead>
-          <tbody>{projects.map(p => (
-            <tr key={p.projectId} style={{ borderBottom: '1px solid #eee' }}>
-              <td style={{ padding: 8, fontWeight: 500 }}>{p.name}</td>
-              <td style={{ padding: 8, fontSize: 12, color: '#666' }}>{p.path}</td>
-              <td style={{ padding: 8 }}><span style={{ padding: '2px 8px', borderRadius: 4, fontSize: 12, background: p.health === 'healthy' ? '#d4edda' : '#fff3cd', color: p.health === 'healthy' ? '#155724' : '#856404' }}>{p.health}</span></td>
-              <td style={{ padding: 8 }}>v{p.protocolVersion}</td>
-            </tr>
-          ))}</tbody>
-        </table>
+    <section className="page">
+      <header className="page-header">
+        <h1>Projects</h1>
+        <div className="actions">
+          <button className="button icon-button" onClick={() => void refreshProjects()} title="Refresh projects" aria-label="Refresh projects">R</button>
+          <button className="button primary" onClick={() => void importProject()} disabled={importing}>{importing ? 'Importing...' : 'Import project'}</button>
+        </div>
+      </header>
+      {(notice || error) && <div className={`notice ${error || notice?.kind === 'error' ? 'error' : notice?.kind || ''}`}>{error || notice?.message}</div>}
+      {loading && <div className="notice">Loading projects...</div>}
+      {!loading && projects.length === 0 ? (
+        <div className="panel empty-state"><h2>No projects</h2><p>Import a folder containing a valid .harness workspace.</p></div>
+      ) : (
+        <div className="panel">
+          <table className="data-table">
+            <thead><tr><th>Name</th><th>Path</th><th>Health</th><th>Protocol</th><th /></tr></thead>
+            <tbody>{projects.map((project) => {
+              const selected = project.projectId === selectedProjectId
+              return (
+                <tr key={project.projectId} className={selected ? 'selected' : ''}>
+                  <td><strong>{project.name}</strong></td>
+                  <td className="mono muted">{project.path}</td>
+                  <td><span className={`badge ${project.health === 'healthy' ? 'success' : 'warning'}`}>{project.health}</span></td>
+                  <td>v{project.protocolVersion}</td>
+                  <td style={{ textAlign: 'right' }}>
+                    <button className="button" disabled={selected} onClick={() => void choose(project)}>{selected ? 'Selected' : 'Select'}</button>
+                  </td>
+                </tr>
+              )
+            })}</tbody>
+          </table>
+        </div>
       )}
-    </div>
+    </section>
   )
 }

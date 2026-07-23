@@ -34,10 +34,11 @@ export const useWorkflowDraft = create<WorkflowDraftState>((set, get) => ({
   redoStack: [],
   diagnostics: [],
 
-  setNodes: (nodes) => set({ nodes }),
+  setNodes: (nodes) => set({ nodes, undoStack: [], redoStack: [], diagnostics: [] }),
 
   addNode: (node, index) => {
     const { nodes } = get()
+    if (nodes.some((current) => current.id === node.id)) return
     const before = [...nodes]
     const after = index !== undefined
       ? [...nodes.slice(0, index), node, ...nodes.slice(index)]
