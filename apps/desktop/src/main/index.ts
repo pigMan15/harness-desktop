@@ -105,6 +105,7 @@ app.whenReady().then(() => {
   ipcMain.handle('project:import', createProjectImportHandler({
     runtimeCall,
     showOpenDialog: (window, options) => dialog.showOpenDialog(window, options),
+    showMessageBox: (window, options) => dialog.showMessageBox(window, options),
     getWindow: () => mainWindow || BrowserWindow.getFocusedWindow() || BrowserWindow.getAllWindows()[0] || null,
   }))
   ipcMain.handle('project:validate', async (_e, path: string) => runtimeCall('project.validate', { path }))

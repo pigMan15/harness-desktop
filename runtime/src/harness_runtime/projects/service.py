@@ -7,10 +7,10 @@ Architecture §5.4: Protocol-incompatible projects return readonly status.
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Optional
 
 from ..persistence.database import get_db
 from ..protocol.loader import ProtocolLoadError, load_project
+from .bootstrap import apply_bootstrap, list_missing_files, rollback_bootstrap
 
 
 def generate_project_id() -> str:
@@ -18,7 +18,7 @@ def generate_project_id() -> str:
     return uuid.uuid4().hex[:12]
 
 
-def import_project(project_path: str) -> dict:
+def import_project(project_path: str, decision: str | None = None) -> dict:
     """Import a .harness project.
 
     Validates the project's protocol health, registers it in SQLite,
@@ -30,18 +30,50 @@ def import_project(project_path: str) -> dict:
     if not root.is_dir():
         raise ValueError(f"Project path does not exist or is not a directory: {project_path}")
 
-    harness_dir = root / ".harness"
-    if not harness_dir.is_dir():
-        raise ValueError(f"No .harness directory found at {project_path}. Use template initialization?")
+    missing_files = list_missing_files(root)
+    if missing_files:
+        if decision is None:
+            return {
+                "confirmationRequired": True,
+                "action": "initialize" if not (root / ".harness").exists() else "append",
+                "path": str(root),
+                "missingFiles": missing_files,
+                "missingCount": len(missing_files),
+            }
+        if decision == "skip":
+            if not (root / ".harness").is_dir():
+                raise ValueError(
+                    "INITIALIZATION_REQUIRED: cannot skip initialization without .harness"
+                )
+            return _register_project(root, strict=False)
+        if decision not in {"initialize", "append"}:
+            raise ValueError(f"IMPORT_DECISION_INVALID: {decision}")
+
+        operation = apply_bootstrap(root, decision)
+        try:
+            return _register_project(root, strict=True)
+        except Exception:
+            # 确认后的写入失败不能留下半成品，也不能先注册再补救。
+            rollback_bootstrap(root, operation)
+            raise
+
+    if decision is not None:
+        raise ValueError("IMPORT_DECISION_NOT_REQUIRED: project is already complete")
+    return _register_project(root, strict=False)
+
+
+def _register_project(root: Path, strict: bool) -> dict:
+    """Validate first, then update the rebuildable registry projection."""
 
     # Validate protocol health
     health = "healthy"
     try:
-        project_data = load_project(root, deep_validate=True)
-    except ProtocolLoadError as e:
+        load_project(root, deep_validate=True)
+    except ProtocolLoadError:
+        if strict:
+            raise
         health = "degraded"
         # Allow import but mark as degraded — user can repair later
-        project_data = None
 
     # Register in SQLite
     db = get_db()

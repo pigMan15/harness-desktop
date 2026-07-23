@@ -111,7 +111,8 @@ def load_project(project_root: Path, deep_validate: bool = True) -> dict[str, An
 
     if deep_validate:
         harness_dir = project_root / ".harness"
-        phase_dir = harness_dir / "phases"
+        # 证据属于当前 Run 的 phase_dir，不能固定从 phases 根目录读取。
+        phase_dir = project_root / state.phase_dir
         agents_dir = harness_dir / "agents"
 
         diagnostics.extend(validate_state_deep(state, phase_dir, harness_dir / "phases"))

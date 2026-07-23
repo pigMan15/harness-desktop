@@ -72,7 +72,7 @@ async def _dispatch(method: str, params: dict) -> Any:
     if method == "project.list":
         return _project_list()
     if method == "project.import":
-        return _project_import(params.get("path", ""))
+        return _project_import(params.get("path", ""), params.get("decision"))
     if method == "project.validate":
         return _project_validate(params.get("path", ""))
     project_id, project_root = _require_project(params)
@@ -178,10 +178,10 @@ def _project_list() -> list[dict]:
     return []
 
 
-def _project_import(path: str) -> dict:
+def _project_import(path: str, decision: str | None = None) -> dict:
     from ..projects.service import import_project
     actual_path = path if path and path != '.' else str(PROJECT_ROOT)
-    return import_project(actual_path)
+    return import_project(actual_path, decision=decision)
 
 
 def _project_validate(path: str) -> dict:

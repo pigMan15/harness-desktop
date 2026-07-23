@@ -1,0 +1,40 @@
+﻿{
+    "schema_version":  "1.0",
+    "run_id":  "multirun-codex-terminal-workflow-20260724",
+    "status":  "DONE",
+    "intent":  "QUERY",
+    "risk":  "NA",
+    "current_node":  "KNOWLEDGE_PROMOTION",
+    "next_role":  "knowledge-keeper",
+    "required_nodes":  [
+                           "INTAKE",
+                           "KNOWLEDGE_PROMOTION"
+                       ],
+    "completed_nodes":  [
+                            "INTAKE",
+                            "KNOWLEDGE_PROMOTION"
+                        ],
+    "blocked_by":  [
+
+                   ],
+    "artifacts":  {
+                      "INTAKE":  ".harness/phases/multirun-codex-terminal-workflow-20260724/00-intake.md",
+                      "KNOWLEDGE_PROMOTION":  ".harness/phases/multirun-codex-terminal-workflow-20260724/19-knowledge-promotion.md"
+                  },
+    "gates":  {
+                  "G1_REQUIREMENTS":  "NOT_REQUIRED",
+                  "G2_DESIGN":  "NOT_REQUIRED",
+                  "G3_COMPILE":  "NOT_REQUIRED",
+                  "G4_UNIT_TEST":  "NOT_REQUIRED",
+                  "G5_ATDD":  "NOT_REQUIRED",
+                  "G6_EVIDENCE":  "NOT_REQUIRED",
+                  "G7_PRERELEASE":  "NOT_REQUIRED",
+                  "G8_ACCEPTANCE":  "NOT_REQUIRED"
+              },
+    "retry_counts":  {
+
+                     },
+    "last_updated":  "2026-07-24T04:39:04+08:00",
+    "notes":  "QUERY/NA deliverable completed. The single-release plan covers all multi-Run, Codex PTY terminal, worktree isolation, Workflow Studio, node progression, validation, packaging and acceptance requirements without deferring core scope.",
+    "phase_dir":  ".harness/phases/multirun-codex-terminal-workflow-20260724"
+}

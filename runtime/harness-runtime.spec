@@ -39,6 +39,7 @@ a = Analysis(
         'harness_runtime.persistence.state_store',
         'harness_runtime.persistence.audit',
         'harness_runtime.projects',
+        'harness_runtime.projects.bootstrap',
         'harness_runtime.projects.service',
         'harness_runtime.workflow',
         'harness_runtime.workflow.compiler',

@@ -7,6 +7,7 @@ Task 2.1 TDD:
 """
 
 import json
+import shutil
 from pathlib import Path
 
 import pytest
@@ -120,6 +121,36 @@ class TestLoadProject:
         assert "state" in project
         assert "workflow" in project
         assert project["state"].run_id
+
+    def test_g6_evidence_is_resolved_from_state_phase_dir(self, tmp_path):
+        root = tmp_path / "completed-project"
+        shutil.copytree(PROJECT_ROOT, root)
+        state_path = root / ".harness" / "state.json"
+        state = json.loads(state_path.read_text(encoding="utf-8"))
+        state["run_id"] = "completed-run"
+        state["phase_dir"] = ".harness/phases/completed-run"
+        state["gates"]["G6_EVIDENCE"] = "PASS"
+        state_path.write_text(json.dumps(state, indent=2), encoding="utf-8")
+        phase_dir = root / state["phase_dir"]
+        phase_dir.mkdir(parents=True, exist_ok=True)
+        evidence = {
+            "run_id": "completed-run",
+            "intent": state["intent"],
+            "risk": state["risk"],
+            "changed_files": [],
+            "commands": [],
+            "gates": state["gates"],
+            "artifacts": [],
+            "waivers": [],
+            "residual_risks": [],
+        }
+        (phase_dir / "15-evidence.json").write_text(
+            json.dumps(evidence, indent=2), encoding="utf-8"
+        )
+
+        project = load_project(root)
+
+        assert project["state"].phase_dir == ".harness/phases/completed-run"
 
 
 class TestValidator:
