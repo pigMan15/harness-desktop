@@ -33,4 +33,7 @@ The same Runtime hash was verified in `apps/desktop/resources/harness-runtime.ex
 
 ## Current result
 
-- Commit, `desktop-v0.1.0` tag, GitHub Release creation and asset upload are still pending.
+- Commit `d0f8032` (`chore: release desktop 0.1.0`) pushed to `main`.
+- Annotated tag `desktop-v0.1.0` pushed and points to `d0f8032`.
+- GitHub Release creation and asset upload are blocked because the current in-app browser still shows the GitHub sign-in form.
+- The Release page is prepared for `desktop-v0.1.0`; after authentication, upload only the two assets listed above.

@@ -1,7 +1,7 @@
 {
   "schema_version": "1.0",
   "run_id": "project-import-fix-release-20260723",
-  "status": "IN_PROGRESS",
+  "status": "BLOCKED",
   "intent": "DEPLOYMENT",
   "risk": "MEDIUM",
   "current_node": "PRERELEASE_DEPLOYMENT",
@@ -20,7 +20,9 @@
     "INTAKE",
     "PRE_MORTEM"
   ],
-  "blocked_by": [],
+  "blocked_by": [
+    "The current in-app GitHub tab still requires sign-in before Release creation and asset upload."
+  ],
   "artifacts": {
     "INTAKE": ".harness/phases/project-import-fix-release-20260723/00-intake.md",
     "PRE_MORTEM": ".harness/phases/project-import-fix-release-20260723/05-pre-mortem.md"
@@ -36,6 +38,6 @@
     "G8_ACCEPTANCE": "NOT_RUN"
   },
   "retry_counts": {},
-  "last_updated": "2026-07-23T10:33:45+08:00",
-  "notes": "Version 0.1.0 was rebuilt from source. Compile, focused tests, Runtime full tests and elevated packaged smoke passed; release commit/tag/Release upload remain in PRERELEASE_DEPLOYMENT."
+  "last_updated": "2026-07-23T11:18:00+08:00",
+  "notes": "Version 0.1.0 commit d0f8032 and tag desktop-v0.1.0 were pushed. PRERELEASE_DEPLOYMENT is blocked only on the current in-app GitHub sign-in before Release creation and asset upload."
 }
