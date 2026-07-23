@@ -6,7 +6,7 @@ const config: ForgeConfig = {
   packagerConfig: {
     asar: true,
     name: 'Harness Desktop',
-    appVersion: '0.0.0',
+    appVersion: '0.1.0',
     extraResource: [
       'resources/harness-runtime.exe',
     ],

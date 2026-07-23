@@ -1,6 +1,6 @@
 [project]
 name = "harness-runtime"
-version = "0.0.0"
+version = "0.1.0"
 description = "Harness Desktop Runtime — .harness v1.0 Protocol Adapter and business logic"
 requires-python = ">=3.11"
 dependencies = [

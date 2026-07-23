@@ -36,6 +36,6 @@
     "G8_ACCEPTANCE": "NOT_RUN"
   },
   "retry_counts": {},
-  "last_updated": "2026-07-23T10:25:00+08:00",
-  "notes": "PRE_MORTEM recorded staging, remote divergence, tag, authentication, asset integrity and rollback stop conditions. Routed to PRERELEASE_DEPLOYMENT."
+  "last_updated": "2026-07-23T10:33:45+08:00",
+  "notes": "Version 0.1.0 was rebuilt from source. Compile, focused tests, Runtime full tests and elevated packaged smoke passed; release commit/tag/Release upload remain in PRERELEASE_DEPLOYMENT."
 }

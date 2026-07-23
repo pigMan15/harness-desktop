@@ -7,6 +7,7 @@ Architecture §5.3: system minimum rules require Desktop/Runtime/Protocol versio
 import os
 
 from fastapi import Header, HTTPException, Request
+from harness_runtime import __version__ as RUNTIME_VERSION
 
 # ── Token authentication ─────────────────────────────
 
@@ -14,15 +15,6 @@ RUNTIME_TOKEN = os.environ.get("HARNESS_RUNTIME_TOKEN", "")
 
 # Hardcoded protocol version (matches .harness state.schema.json schema_version)
 PROTOCOL_VERSION = "1.0"
-
-# Runtime version (read from package metadata at import time)
-try:
-    from importlib.metadata import version as _package_version
-
-    RUNTIME_VERSION = _package_version("harness-runtime")
-except Exception:
-    RUNTIME_VERSION = "0.0.0"
-
 
 def get_runtime_token() -> str:
     """Return the configured runtime token (read once from environment at startup)."""

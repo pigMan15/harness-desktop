@@ -45,7 +45,7 @@ class TestHealthAuth:
         monkeypatch.setattr("harness_runtime.api.auth.RUNTIME_TOKEN", "test-token-123")
         response = client.get(
             "/health",
-            headers={"X-Harness-Desktop-Version": "0.0.0"},
+            headers={"X-Harness-Desktop-Version": "0.1.0"},
             # No Authorization header
         )
         assert response.status_code == 401, f"Expected 401, got {response.status_code}: {response.json()}"
@@ -56,7 +56,7 @@ class TestHealthAuth:
             "/health",
             headers={
                 "Authorization": "Bearer wrong-token",
-                "X-Harness-Desktop-Version": "0.0.0",
+                "X-Harness-Desktop-Version": "0.1.0",
             },
         )
         assert response.status_code == 401, f"Expected 401, got {response.status_code}: {response.json()}"
@@ -76,7 +76,7 @@ class TestHealthAuth:
             "/health",
             headers={
                 "Authorization": "Bearer test-token-123",
-                "X-Harness-Desktop-Version": "0.0.0",
+                "X-Harness-Desktop-Version": "0.1.0",
             },
         )
         assert response.status_code == 200, f"Expected 200, got {response.status_code}: {response.json()}"

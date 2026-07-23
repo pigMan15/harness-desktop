@@ -121,13 +121,13 @@ pnpm exec electron-packager apps\desktop "Harness Desktop" `
   --ignore=node_modules
 
 # 4. Build the Squirrel.Windows installer
-node -e "const { createWindowsInstaller } = require('electron-winstaller'); createWindowsInstaller({ appDirectory: 'dist/desktop-unpacked/Harness Desktop-win32-x64', outputDirectory: 'dist/desktop-installer', authors: 'Harness Desktop', exe: 'Harness Desktop.exe', setupExe: 'Harness Desktop-0.0.0 Setup.exe', noMsi: true, name: 'harness-desktop' }).then(() => console.log('installer ok')).catch((err) => { console.error(err); process.exit(1); });"
+node -e "const { createWindowsInstaller } = require('electron-winstaller'); createWindowsInstaller({ appDirectory: 'dist/desktop-unpacked/Harness Desktop-win32-x64', outputDirectory: 'dist/desktop-installer', authors: 'Harness Desktop', exe: 'Harness Desktop.exe', setupExe: 'Harness Desktop-0.1.0 Setup.exe', noMsi: true, name: 'harness-desktop' }).then(() => console.log('installer ok')).catch((err) => { console.error(err); process.exit(1); });"
 ```
 
 Successful outputs:
 
-- `dist/desktop-installer/Harness Desktop-0.0.0 Setup.exe`
-- `dist/desktop-installer/harness-desktop-0.0.0-full.nupkg`
+- `dist/desktop-installer/Harness Desktop-0.1.0 Setup.exe`
+- `dist/desktop-installer/harness-desktop-0.1.0-full.nupkg`
 - `dist/desktop-installer/RELEASES`
 - `dist/desktop-unpacked/Harness Desktop-win32-x64/Harness Desktop.exe`
 

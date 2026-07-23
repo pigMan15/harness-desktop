@@ -105,7 +105,7 @@ export class RuntimeSupervisor extends EventEmitter {
       const resp = await fetch(`http://127.0.0.1:${this.port}/health`, {
         headers: {
           Authorization: `Bearer ${this.token}`,
-          'X-Harness-Desktop-Version': '0.0.0',
+          'X-Harness-Desktop-Version': '0.1.0',
         },
       })
       if (resp.ok) {

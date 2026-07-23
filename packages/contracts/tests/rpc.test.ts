@@ -11,7 +11,7 @@ const validRequest: RpcRequest = {
 
 const validResponse: RpcResponse = {
   jsonrpc: '2.0',
-  result: { status: 'healthy', runtime_version: '0.0.0', protocol_version: '1.0' },
+  result: { status: 'healthy', runtime_version: '0.1.0', protocol_version: '1.0' },
   id: 'req-001',
 }
 

@@ -1,7 +1,7 @@
 {
   "name": "@harness/desktop",
   "private": true,
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Harness Desktop — Electron shell",
   "author": "Harness Desktop",
   "main": ".vite/build/main.js",

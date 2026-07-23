@@ -17,6 +17,9 @@ declare const MAIN_WINDOW_VITE_NAME: string
 let mainWindow: BrowserWindow | null = null
 let supervisor: RuntimeSupervisor | null = null
 
+// Keep the desktop shell usable on Windows hosts whose GPU process cannot initialize.
+app.disableHardwareAcceleration()
+
 function createWindow(): void {
   mainWindow = new BrowserWindow({
     width: 1280,
@@ -66,7 +69,7 @@ app.whenReady().then(() => {
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${supervisor.token}`,
-          'X-Harness-Desktop-Version': '0.0.0',
+          'X-Harness-Desktop-Version': '0.1.0',
         },
         body: JSON.stringify({ jsonrpc: '2.0', method, params, id: `req-${Date.now()}` }),
       })
@@ -88,7 +91,7 @@ app.whenReady().then(() => {
     if (!supervisor || !supervisor.port) return { status: 'starting' }
     try {
       const resp = await fetch(`http://127.0.0.1:${supervisor.port}/health`, {
-        headers: { Authorization: `Bearer ${supervisor.token}`, 'X-Harness-Desktop-Version': '0.0.0' },
+        headers: { Authorization: `Bearer ${supervisor.token}`, 'X-Harness-Desktop-Version': '0.1.0' },
       })
       if (resp.ok) return await resp.json()
       return { status: 'unavailable', error: `HTTP ${resp.status}` }

@@ -9,4 +9,4 @@ This package provides the Python backend for Harness Desktop:
 M1 scope: API health check + authentication handshake only.
 """
 
-__version__ = "0.0.0"
+__version__ = "0.1.0"
