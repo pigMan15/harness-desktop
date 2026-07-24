@@ -1,5 +1,14 @@
 # Changelog
 
+## v0.1.0 (2026-07-24)
+
+- Added authoritative multi-Run selection, archive, execution context, revisions, and mandatory isolated Git worktrees.
+- Added native Codex and shell terminals with node-pty/ConPTY, Codex discovery/settings, per-Run ownership, concurrency limits, restart, resize, and redacted durable summaries.
+- Added explicit node complete/confirm/reject APIs; terminal exit remains independent from workflow progression.
+- Added dynamic Gate definitions/artifacts, custom Gates, audited waivers, configured retry recovery, and BLOCKED closure.
+- Completed Workflow Studio routes, node inspector, recovery/rules/YAML tabs, import/export, semantic diff, versions, and restore.
+- Added multi-Run renderer state, run-scoped Terminal/Workflow/Gates/Artifacts, diagnostics export, focused tests, and Playwright ATDD.
+
 ## v0.0.0-dev (unreleased)
 
 ### M1 — Desktop Foundation

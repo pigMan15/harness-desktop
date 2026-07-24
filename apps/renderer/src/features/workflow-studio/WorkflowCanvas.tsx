@@ -19,7 +19,7 @@ const NODE_ROLES: Record<string, string> = {
 }
 
 export function WorkflowCanvas(): React.ReactElement {
-  const { nodes, addNode, reorderNode } = useWorkflowDraft()
+  const { nodes, addNode, reorderNode, selectedNodeId, selectNode } = useWorkflowDraft()
   const { screenToFlowPosition } = useReactFlow()
 
   const flowNodes: Node[] = useMemo(() =>
@@ -27,6 +27,7 @@ export function WorkflowCanvas(): React.ReactElement {
       id: n.id, position: { x: 100, y: i * 80 + 20 },
       data: { label: n.id, role: n.role },
       type: 'default',
+      selected: n.id === selectedNodeId,
       style: SYSTEM_NODES.has(n.id) ? { background: '#fff3cd', border: '1px solid #ffc107' } : undefined,
     })), [nodes])
 
@@ -61,7 +62,7 @@ export function WorkflowCanvas(): React.ReactElement {
 
   return (
     <div style={{ height:600, border:'1px solid #ddd',borderRadius:8 }} onDragOver={onDragOver} onDrop={onDrop}>
-      <ReactFlow nodes={flowNodes} edges={flowEdges} onNodeDragStop={onNodeDragStop} fitView nodesDraggable>
+      <ReactFlow nodes={flowNodes} edges={flowEdges} onNodeClick={(_event, node) => selectNode(node.id)} onNodeDragStop={onNodeDragStop} fitView nodesDraggable>
         <Background /><Controls />
       </ReactFlow>
     </div>

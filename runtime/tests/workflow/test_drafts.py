@@ -18,7 +18,12 @@ from harness_runtime.workflow.drafts import (
     semantic_diff,
     simulate_draft,
 )
-from harness_runtime.workflow.versioning import get_version, list_versions, save_version
+from harness_runtime.workflow.versioning import (
+    get_version,
+    list_versions,
+    restore_version,
+    save_version,
+)
 
 VALID_WF = Path(__file__).resolve().parents[3] / "fixtures" / "harness-v1" / "valid-project" / ".harness"
 
@@ -217,3 +222,23 @@ class TestVersioning:
         v = get_version(PROJECT_ID, vid)
         assert v is not None
         assert v["yaml_content"] == "v1 content"
+
+    def test_restore_version_uses_validated_atomic_apply(self, tmp_path):
+        root = tmp_path / "restore-project"
+        shutil.copytree(VALID_WF.parent, root)
+        original = (root / ".harness" / "workflow.yaml").read_text(encoding="utf-8")
+        saved = save_version(PROJECT_ID, original, author="test", summary="known-good")
+        current = original.replace('schema_version: "1.0"', "schema_version: '1.0'")
+        (root / ".harness" / "workflow.yaml").write_text(current, encoding="utf-8")
+        expected_hash = hashlib.sha256(current.encode("utf-8")).hexdigest()
+
+        result = restore_version(
+            PROJECT_ID,
+            root,
+            saved["id"],
+            expected_hash=expected_hash,
+            author="tester",
+        )
+
+        assert result["success"] is True, result
+        assert (root / ".harness" / "workflow.yaml").read_text(encoding="utf-8") == original

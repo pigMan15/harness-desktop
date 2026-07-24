@@ -38,14 +38,15 @@ Common causes:
 
 Do not manually force a PASS in project state. Fix the artifact/evidence or record a valid waiver.
 
-## Execution Or Approval Issues
+## Codex Terminal Is Unavailable
 
 Checks:
 
-- Fake executor is available for local integration tests.
-- Codex adapter returns an actionable diagnostic when Codex is missing.
-- Dangerous deploy/delete/Git actions require second confirmation.
-- Broad shell or Python prefixes must not be approved as reusable policy.
+- Open Settings and select **Discover**. Discovery tries the saved path, `HARNESS_CODEX_PATH`, known Hermes vendor paths, then every PATH candidate.
+- If WindowsApps returns `Access is denied`, select the real `codex.exe`; discovery continues past inaccessible aliases.
+- A candidate is saved only when direct `codex.exe --version` exits successfully and returns a Codex CLI version.
+- Terminal cwd is always the Runtime-provided Run worktree. A missing or failed worktree blocks the terminal instead of falling back to the shared project root.
+- A terminal exit does not complete the current Harness node. Create the required artifact, then use **Complete current node** or the confirmation controls.
 
 ## Packaging Issues
 
@@ -53,7 +54,7 @@ Checks:
 
 ```powershell
 .\scripts\package-runtime.ps1
-pnpm --filter @harness/desktop package
+pnpm.cmd --filter @harness/desktop package
 ```
 
 Unsigned artifacts can be used for development packaging checks, but they do not prove release signing, update, or clean Windows VM installation success.

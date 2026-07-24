@@ -70,6 +70,26 @@
     }
   },
 
+  "TerminalSessionSummary": {
+    "type": "object",
+    "required": ["sessionId", "projectId", "runId", "nodeId", "kind", "executablePath", "cwd", "status", "startedAt", "cols", "rows", "sequence"],
+    "properties": {
+      "sessionId": { "type": "string" },
+      "projectId": { "type": "string" },
+      "runId": { "type": "string" },
+      "nodeId": { "type": "string" },
+      "kind": { "enum": ["codex", "shell"] },
+      "executablePath": { "type": "string" },
+      "cwd": { "type": "string" },
+      "status": { "enum": ["starting", "running", "exited", "failed", "stopped", "interrupted"] },
+      "startedAt": { "type": "string", "format": "date-time" },
+      "endedAt": { "type": "string", "format": "date-time" },
+      "cols": { "type": "integer", "minimum": 20, "maximum": 500 },
+      "rows": { "type": "integer", "minimum": 5, "maximum": 200 },
+      "sequence": { "type": "integer", "minimum": 0 }
+    }
+  },
+
   "examples": {
     "RpcRequest": {
       "jsonrpc": "2.0",

@@ -66,7 +66,10 @@ describe('RPC contracts', () => {
   it('defines the project-bound desktop bridge surface', () => {
     type Method = keyof HarnessApi
     const methods: Method[] = ['switchRun', 'pauseRun', 'resumeRun', 'previewWorkflow',
-      'evaluateGate', 'probeExecution', 'startExecution', 'pollExecution', 'respondExecution', 'cancelExecution']
-    expect(methods).toHaveLength(10)
+      'evaluateGate', 'probeExecution', 'startExecution', 'pollExecution', 'respondExecution', 'cancelExecution',
+      'archiveRun', 'getRunExecutionContext', 'completeNode', 'confirmNode', 'createTerminal', 'writeTerminal',
+      'resizeTerminal', 'stopTerminal', 'restartTerminal', 'previewWorkflowYaml', 'importWorkflow', 'exportWorkflow',
+      'listWorkflowVersions', 'restoreWorkflowVersion', 'waiveGate', 'hashArtifact', 'exportDiagnostics']
+    expect(methods).toHaveLength(27)
   })
 })

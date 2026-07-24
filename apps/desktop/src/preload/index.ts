@@ -7,20 +7,49 @@ const harnessApi: HarnessApi = {
   listProjects: () => ipcRenderer.invoke('project:list'),
   importProject: (p: string) => ipcRenderer.invoke('project:import', p),
   validateProject: (p: string) => ipcRenderer.invoke('project:validate', p),
+  repairProject: (p: string) => ipcRenderer.invoke('project:repair',p),
+  unregisterProject: (p: string) => ipcRenderer.invoke('project:unregister',p),
+  relocateProject: (p: string) => ipcRenderer.invoke('project:relocate',p),
   listRuns: (p: string) => ipcRenderer.invoke('run:list', p),
   createRun: (p: string,i: string,r: string,id: string,rev?: string) => ipcRenderer.invoke('run:create',p,i,r,id,rev),
   switchRun: (p: string,id: string,rev?: string) => ipcRenderer.invoke('run:switch',p,id,rev),
   pauseRun: (p: string,id: string,rev?: string) => ipcRenderer.invoke('run:pause',p,id,rev),
   resumeRun: (p: string,id: string,rev?: string) => ipcRenderer.invoke('run:resume',p,id,rev),
-  getWorkflow: (p: string) => ipcRenderer.invoke('workflow:get', p),
+  archiveRun: (p: string,id: string,rev?: string) => ipcRenderer.invoke('run:archive',p,id,rev),
+  getRunExecutionContext: (p: string,id: string,rev?: string) => ipcRenderer.invoke('run:execution-context',p,id,rev),
+  completeNode: (p: string,id: string,rev?: string) => ipcRenderer.invoke('node:complete',p,id,rev),
+  confirmNode: (p: string,id: string,d,c,rev?: string) => ipcRenderer.invoke('node:confirm',p,id,d,c,rev),
+  rejectNode: (p: string,id: string,c,rev?: string) => ipcRenderer.invoke('node:reject',p,id,c,rev),
+  getWorkflow: (p: string,r?: string) => ipcRenderer.invoke('workflow:get', p,r),
   compileWorkflow: (p: string,i: string,r: string) => ipcRenderer.invoke('workflow:compile',p,i,r),
-  previewWorkflow: (p,n,i,r,route) => ipcRenderer.invoke('workflow:preview',p,n,i,r,route),
+  previewWorkflow: (p,n,i,r,route,o) => ipcRenderer.invoke('workflow:preview',p,n,i,r,route,o),
   diffWorkflow: (p: string,y: string) => ipcRenderer.invoke('workflow:diff',p,y),
+  previewWorkflowYaml: (p: string,y: string) => ipcRenderer.invoke('workflow:preview-yaml',p,y),
   applyWorkflow: (p: string,y: string,h: string) => ipcRenderer.invoke('workflow:apply',p,y,h),
+  importWorkflow: (p: string) => ipcRenderer.invoke('workflow:import',p),
+  exportWorkflow: (p: string,f: 'yaml' | 'zip') => ipcRenderer.invoke('workflow:export',p,f),
+  listWorkflowVersions: (p: string) => ipcRenderer.invoke('workflow:versions',p),
+  restoreWorkflowVersion: (p: string,id: number,h: string) => ipcRenderer.invoke('workflow:restore',p,id,h),
   listGates: (p: string,r: string) => ipcRenderer.invoke('gate:list', p,r),
   evaluateGate: (p: string,r: string,g: string,rev?: string) => ipcRenderer.invoke('gate:evaluate',p,r,g,rev),
+  waiveGate: (p: string,r: string,g: string,s: string,reason: string,o: string,rev?: string) => ipcRenderer.invoke('gate:waive',p,r,g,s,reason,o,rev),
   listArtifacts: (p: string,r: string) => ipcRenderer.invoke('artifact:list', p,r),
   readArtifact: (p: string,r: string,f: string) => ipcRenderer.invoke('artifact:read',p,r,f),
+  hashArtifact: (p: string,r: string,f: string) => ipcRenderer.invoke('artifact:hash',p,r,f),
+  getCodexSettings: () => ipcRenderer.invoke('codex-settings:get'),
+  discoverCodex: () => ipcRenderer.invoke('codex-settings:discover'),
+  selectCodexExecutable: () => ipcRenderer.invoke('codex-settings:select'),
+  createTerminal: (request) => ipcRenderer.invoke('terminal:create',request),
+  listTerminals: (p: string) => ipcRenderer.invoke('terminal:list',p),
+  writeTerminal: (id: string,data: string) => ipcRenderer.invoke('terminal:write',id,data),
+  getTerminalScrollback: (id: string) => ipcRenderer.invoke('terminal:scrollback',id),
+  resizeTerminal: (id: string,cols: number,rows: number) => ipcRenderer.invoke('terminal:resize',id,cols,rows),
+  stopTerminal: (id: string) => ipcRenderer.invoke('terminal:stop',id),
+  restartTerminal: (id: string) => ipcRenderer.invoke('terminal:restart',id),
+  onTerminalData: (cb) => subscribe('terminal:data',cb),
+  onTerminalExit: (cb) => subscribe('terminal:exit',cb),
+  onTerminalStatus: (cb) => subscribe('terminal:status',cb),
+  exportDiagnostics: (p: string) => ipcRenderer.invoke('diagnostics:export',p),
   listKnowledge: (p: string,s: string) => ipcRenderer.invoke('knowledge:list',p,s),
   reviewKnowledge: (p: string,id: number,d: string) => ipcRenderer.invoke('knowledge:review',p,id,d),
   probeExecution: (p: string) => ipcRenderer.invoke('execution:probe',p),
@@ -30,7 +59,18 @@ const harnessApi: HarnessApi = {
   cancelExecution: (p: string,r: string,s: string) => ipcRenderer.invoke('execution:cancel',p,r,s),
   scanRecovery: (p: string) => ipcRenderer.invoke('recovery:scan',p),
   cleanupRecovery: (p: string) => ipcRenderer.invoke('recovery:cleanup',p),
-  onRuntimeEvent: (ch: string,cb: (...a: any[]) => void) => { if (VALID_EVENT_CHANNELS.includes(ch as typeof VALID_EVENT_CHANNELS[number])) ipcRenderer.on(ch,(_e,...a) => cb(...a)) },
+  onRuntimeEvent: (ch: string,cb: (...a: any[]) => void) => {
+    if (!VALID_EVENT_CHANNELS.includes(ch as typeof VALID_EVENT_CHANNELS[number])) return () => {}
+    const listener = (_e: unknown,...a: unknown[]) => cb(...a)
+    ipcRenderer.on(ch,listener)
+    return () => ipcRenderer.removeListener(ch,listener)
+  },
+}
+
+function subscribe(channel: 'terminal:data' | 'terminal:exit' | 'terminal:status', callback: (event: any) => void): () => void {
+  const listener = (_event: unknown, payload: unknown) => callback(payload)
+  ipcRenderer.on(channel, listener)
+  return () => ipcRenderer.removeListener(channel, listener)
 }
 
 contextBridge.exposeInMainWorld('harness', harnessApi)

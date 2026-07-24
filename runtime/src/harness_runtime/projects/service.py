@@ -152,6 +152,38 @@ def unregister_project(project_id: str) -> bool:
     return cursor.rowcount > 0
 
 
+def repair_project(project_id: str) -> dict:
+    """Append only missing Harness v1 files after an explicit repair command."""
+    project = get_project(project_id)
+    root = Path(project["path"]).resolve()
+    missing = list_missing_files(root)
+    if missing:
+        apply_bootstrap(root, "append")
+    return _register_project(root, strict=True)
+
+
+def relocate_project(project_id: str, project_path: str) -> dict:
+    """Move a registry projection after validating the new authoritative path."""
+    get_project(project_id)
+    root = Path(project_path).resolve()
+    if not root.is_dir():
+        raise ValueError(f"PROJECT_PATH_MISSING: {project_path}")
+    load_project(root, deep_validate=True)
+    db = get_db()
+    conflict = db.execute(
+        "SELECT id FROM projects WHERE path = ? AND id <> ?",
+        (str(root), project_id),
+    ).fetchone()
+    if conflict:
+        raise ValueError(f"PROJECT_PATH_ALREADY_REGISTERED: {project_path}")
+    db.execute(
+        "UPDATE projects SET path = ?, name = ?, health = 'healthy', updated_at = ? WHERE id = ?",
+        (str(root), root.name, _now(), project_id),
+    )
+    db.commit()
+    return get_project(project_id)
+
+
 def validate_project(project_path: str) -> dict:
     """Validate a project path without registering it.
 

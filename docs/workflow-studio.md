@@ -6,11 +6,13 @@ Workflow Studio is the UI and Runtime surface for editing `.harness/workflow.yam
 
 ## Current Scope
 
-- Load the current project workflow.
-- Compile routes for a chosen Intent/Risk.
+- Edit every supported Intent/Risk route without changing active runs' frozen routes.
+- Create, duplicate, reorder, remove, and edit custom nodes, roles, safe artifact names, and gates.
+- Edit failure recovery retry limits and targets; compare project and effective hard rules.
+- Edit complete YAML with Runtime validation.
 - Produce diagnostics for invalid workflow definitions.
-- Compare workflow YAML through semantic diff support.
-- Apply workflow updates through Runtime APIs.
+- Import YAML or manifest/hash-verified ZIP, and export YAML or ZIP through native dialogs.
+- Compare semantic diff, apply with an expected hash, list versions, and restore through the same validated atomic path.
 - Keep active run routing frozen: changing `workflow.yaml` affects new runs, not an already-started run.
 
 ## Safety Model
@@ -25,16 +27,11 @@ Workflow changes must preserve system minimum rules:
 
 ## Typical Flow
 
-1. Open Workflow.
-2. Select Intent and Risk.
-3. Compile or simulate the route.
-4. Review diagnostics.
-5. Edit or import YAML.
-6. Review semantic diff.
-7. Apply with the expected workflow hash.
+1. Open Workflow Studio and select a global tab.
+2. In Routes, choose Intent/Risk and edit the linear timeline. Use Inspector for role, artifact, and gate fields.
+3. Review Recovery and Rules, or edit the complete YAML.
+4. Select Preview and resolve all Runtime diagnostics.
+5. Review semantic diff and select Apply. The expected hash prevents stale writes.
+6. Use Versions to restore a previous version; restore is validated and creates a new version record.
 
-## Known Gaps
-
-- Renderer-level Workflow Studio Vitest files are not present yet.
-- Full Playwright E2E coverage for custom workflow editing is not present yet.
-- Activity migration for already-started runs should remain a CHANGE_REQUEST workflow, not an implicit route rewrite.
+Already-started runs are intentionally never migrated by Workflow apply. Route migration remains an explicit CHANGE_REQUEST workflow.

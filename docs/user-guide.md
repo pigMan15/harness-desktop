@@ -26,11 +26,13 @@ Packaged builds should start the bundled Runtime through Electron Main.
 | --- | --- |
 | Home | Shows Runtime connectivity and protocol version. |
 | Projects | Import, list, and validate `.harness` projects. |
-| Runs | Create and list runs. Intent/Risk must be explicitly supplied by the user. |
-| Workflow | Inspect and compile the active workflow for a selected Intent/Risk. |
+| Runs | Create, select, pause, resume, and archive multiple runs. Intent/Risk remain user supplied and immutable. |
+| Terminal | Run native Codex or a controlled shell in the selected Run worktree without stopping other Runs. |
+| Settings | Discover, probe, select, and persist the Codex executable outside the project repository. |
+| Workflow | Edit all linear routes, nodes, recovery, rules, YAML, imports/exports, and versions. |
 | Gates | View and evaluate gate status through Runtime APIs. |
 | Artifacts | List and preview phase artifacts from the active `phase_dir`. |
-| Execution | Start/poll/cancel executor sessions and respond to approval requests. |
+| Execution | Legacy app-server diagnostics; native Codex work should use Terminal. |
 | Knowledge | Review, accept, or reject knowledge promotion candidates. |
 | Recovery | Scan and clean recoverable runtime/session state. |
 
@@ -40,6 +42,8 @@ Packaged builds should start the bundled Runtime through Electron Main.
 - Do not mark G3-G8 gates as passed unless verifier-domain evidence exists.
 - Treat Windows installer, upgrade, uninstall, and signing claims as release evidence items; they require explicit command output, artifacts, and hashes.
 - If the Runtime reports a revision conflict, refresh the project state before retrying the operation.
+- Terminal output is not a phase artifact. Explicitly complete or confirm the node after its required artifact exists.
+- Switching Runs changes only the visible context; active terminals for other Runs continue until explicitly stopped or the app shuts down.
 
 ## Evidence
 

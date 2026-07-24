@@ -21,6 +21,7 @@ def evaluate_gate(
     caller_role: str = "developer",
     gate_meanings: Optional[dict[str, str]] = None,
     failure_recovery: Optional[dict[str, Any]] = None,
+    required_artifacts: Optional[dict[str, list[str]]] = None,
 ) -> dict:
     """Deterministic evaluation of a quality gate.
 
@@ -42,7 +43,7 @@ def evaluate_gate(
         return _validate_waiver(state, gate_id)
 
     # Deterministic artifact checks (for NOT_RUN and other statuses)
-    gate_artifacts = _get_gate_artifacts(gate_id, gate_meanings)
+    gate_artifacts = _get_gate_artifacts(gate_id, required_artifacts)
     for artifact_name in gate_artifacts:
         check = _check_artifact(phase_dir, artifact_name)
         if check["status"] == "FAIL":
@@ -88,7 +89,7 @@ def _handle_failure(
     retry_counts = state.setdefault("retry_counts", {})
     count = retry_counts.get(gate_id, 0) + 1
     retry_counts[gate_id] = count
-    max_retries = 2
+    max_retries = int((failure_recovery or {}).get("max_auto_retries_per_gate", 2))
 
     if count > max_retries:
         state["gates"][gate_id] = "BLOCKED"
@@ -107,9 +108,13 @@ def _handle_failure(
     }
 
 
-def _get_gate_artifacts(gate_id: str, gate_meanings: Optional[dict[str, str]]) -> list[str]:
+def _get_gate_artifacts(
+    gate_id: str, required_artifacts: Optional[dict[str, list[str]]]
+) -> list[str]:
     """Get the required artifacts for a gate (from gates.yaml)."""
     # Standard mapping from architecture §5.4 + gates.yaml
+    if required_artifacts is not None:
+        return list(required_artifacts.get(gate_id, []))
     standard_artifacts = {
         "G1_REQUIREMENTS": ["01-requirement-review.md"],
         "G2_DESIGN": ["03-solution-design.md", "06-implementation-plan.md"],

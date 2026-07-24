@@ -15,13 +15,17 @@ interface WorkflowDraftState {
   undoStack: NodeDraft[][]
   redoStack: NodeDraft[][]
   diagnostics: Array<{ code: string; severity: string; pointer: string; message: string }>
+  selectedNodeId: string
   setNodes: (nodes: NodeDraft[]) => void
   addNode: (node: NodeDraft, index?: number) => void
   removeNode: (nodeId: string) => void
+  updateNode: (nodeId: string, patch: Partial<NodeDraft>) => void
+  duplicateNode: (nodeId: string) => void
   reorderNode: (fromIndex: number, toIndex: number) => void
   setIntent: (intent: string) => void
   setRisk: (risk: string) => void
   setDiagnostics: (diags: WorkflowDraftState['diagnostics']) => void
+  selectNode: (nodeId: string) => void
   undo: () => void
   redo: () => void
 }
@@ -33,8 +37,9 @@ export const useWorkflowDraft = create<WorkflowDraftState>((set, get) => ({
   undoStack: [],
   redoStack: [],
   diagnostics: [],
+  selectedNodeId: '',
 
-  setNodes: (nodes) => set({ nodes, undoStack: [], redoStack: [], diagnostics: [] }),
+  setNodes: (nodes) => set({ nodes, undoStack: [], redoStack: [], diagnostics: [], selectedNodeId: '' }),
 
   addNode: (node, index) => {
     const { nodes } = get()
@@ -55,6 +60,30 @@ export const useWorkflowDraft = create<WorkflowDraftState>((set, get) => ({
     })
   },
 
+  updateNode: (nodeId, patch) => {
+    const { nodes } = get()
+    const nextId = patch.id?.trim() || nodeId
+    if (nextId !== nodeId && nodes.some((node) => node.id === nextId)) return
+    set({
+      nodes: nodes.map((node) => node.id === nodeId ? { ...node, ...patch, id: nextId } : node),
+      selectedNodeId: nextId,
+      undoStack: [...get().undoStack, [...nodes]],
+      redoStack: [],
+    })
+  },
+
+  duplicateNode: (nodeId) => {
+    const { nodes } = get()
+    const index = nodes.findIndex((node) => node.id === nodeId)
+    if (index < 0) return
+    let suffix = '_COPY'
+    let copyId = `${nodeId}${suffix}`
+    let count = 2
+    while (nodes.some((node) => node.id === copyId)) copyId = `${nodeId}${suffix}_${count++}`
+    const copy = { ...nodes[index], id: copyId, gates: [...nodes[index].gates] }
+    set({ nodes: [...nodes.slice(0, index + 1), copy, ...nodes.slice(index + 1)], selectedNodeId: copyId, undoStack: [...get().undoStack, [...nodes]], redoStack: [] })
+  },
+
   reorderNode: (fromIndex, toIndex) => {
     const { nodes } = get()
     const reordered = [...nodes]
@@ -66,6 +95,7 @@ export const useWorkflowDraft = create<WorkflowDraftState>((set, get) => ({
   setIntent: (intent) => set({ selectedIntent: intent }),
   setRisk: (risk) => set({ selectedRisk: risk }),
   setDiagnostics: (diagnostics) => set({ diagnostics }),
+  selectNode: (selectedNodeId) => set({ selectedNodeId }),
 
   undo: () => {
     const { undoStack, nodes } = get()

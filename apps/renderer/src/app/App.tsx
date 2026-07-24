@@ -9,8 +9,9 @@ import { WorkflowPage } from '../features/workflow/WorkflowPage'
 import { GatesPage } from '../features/gates/GatesPage'
 import { ArtifactsPage } from '../features/artifacts/ArtifactsPage'
 import { KnowledgePage } from '../features/knowledge/KnowledgePage'
-import { ExecutionPage } from '../features/execution/ExecutionPage'
 import { RecoveryPage } from '../features/recovery/RecoveryPage'
+import { TerminalPage } from '../features/terminal/TerminalPage'
+import { CodexSettingsPage } from '../features/settings/CodexSettingsPage'
 
 function WorkspaceHeader(): React.ReactElement {
   const { status } = useRuntime()
@@ -41,7 +42,9 @@ function WorkspaceRoutes(): React.ReactElement {
             <Route path="/gates" element={<GatesPage />} />
             <Route path="/artifacts" element={<ArtifactsPage />} />
             <Route path="/knowledge" element={<KnowledgePage />} />
-            <Route path="/execution" element={<ExecutionPage />} />
+            <Route path="/execution" element={<TerminalPage />} />
+            <Route path="/terminal" element={<TerminalPage />} />
+            <Route path="/settings/codex" element={<CodexSettingsPage />} />
             <Route path="/recovery" element={<RecoveryPage />} />
           </Routes>
         </main>

@@ -17,13 +17,13 @@ Windows 首发 · 严格兼容 `.harness` v1.0 · 驱动 Codex 等外部 Coding 
 ┌── React Renderer ──────┐
 │  Projects · Runs        │
 │  Workflow Studio        │
-│  Execution · Approvals  │
+│  Native Codex Terminal  │
 │  Gates · Artifacts      │
 └────────┬────────────────┘
          │ Typed Preload API (contextBridge)
 ┌── Electron Main ────────┐
-│  Window · Runtime Sup.  │
-│  Native Dialog · IPC    │
+│  Runtime Sup. · Dialog  │
+│  TerminalManager · PTY  │
 └────────┬────────────────┘
          │ localhost + one-time token
 ┌── Python Runtime ───────┐
@@ -92,13 +92,14 @@ harness-desktop/
 
 | 模块 | 说明 |
 |---|---|
-| **Project & Run** | 导入/初始化 `.harness` v1.0 项目，创建/切换/暂停 Run |
-| **Workflow Studio** | React Flow 可视化编辑，拖拽节点，编译检查，语义 diff，版本历史 |
+| **Project & Run** | 导入/初始化项目，多 Run 创建、切换、暂停、恢复、归档和独立 worktree |
+| **Codex Terminal** | 自动发现/手选 Codex；每 Run 独立 node-pty/ConPTY；ANSI、中文、粘贴、resize、Ctrl+C、停止与重启 |
+| **Workflow Studio** | 全路线、节点/角色/Artifact/Gate、recovery/rules/YAML、导入导出、语义 diff、版本恢复 |
 | **Workflow Compiler** | 系统最低规则合并，线性路由编译，simulate 预览 |
 | **State Store** | 项目锁 → revision 比对 → 原子替换 → 快照 → 并发冲突检测 |
 | **Dispatcher** | 节点路由，人工确认门禁，CHANGE_REQUEST 迁移 |
 | **Gate Engine** | G1-G8 确定性检查，G3-G8 verifier 独占，WAIVED 元数据，retry→BLOCKED |
-| **Codex Adapter** | 子进程 spawn，事件流解析，审批处理，优雅取消/恢复 |
+| **Node lifecycle** | 显式完成/确认/拒绝；Runtime 校验 revision 与 artifact 后推进 Dispatcher；终端退出不推进节点 |
 | **Approval Service** | 8 类审批（file/command/network/deploy/delete/permission/git），禁止通用 shell 前缀 |
 | **Recovery** | 崩溃恢复，孤儿进程清理，状态一致性验证 |
 | **Knowledge** | 候选 draft → review → accept/reject → 长期知识库 |
@@ -108,7 +109,7 @@ harness-desktop/
 | 层 | 技术 |
 |---|---|
 | Desktop | Electron Forge + TypeScript + Vite |
-| Renderer | React + Vite + React Flow + Zustand |
+| Renderer | React + Vite + React Flow + Zustand + xterm.js |
 | Runtime | Python 3.11+ / FastAPI / Uvicorn / Pydantic v2 |
 | Storage | SQLite (stdlib) + 原子文件写 |
 | Contracts | TypeScript types + Python Pydantic (同源 JSON Schema) |
@@ -194,7 +195,7 @@ Harness Desktop 不依赖 Bridle CLI 源码，通过冻结 fixture + 契约测�
 - Renderer 无 Node/Shell/文件系统权限
 - Runtime 只监听 `127.0.0.1`，一次性 token 认证
 - 所有路径 canonicalize 后验证，拒绝 symlink/junction 逃逸
-- Secret 存 OS Keychain，日志脱敏
+- Codex 登录凭据由 Codex CLI 自身管理；Harness 设置不保存 token，诊断摘要统一脱敏
 - SQLite 参数化查询，ZIP 导入防 Zip Slip
 - CSP 禁止远程脚本
 
@@ -210,4 +211,4 @@ Harness Desktop 不依赖 Bridle CLI 源码，通过冻结 fixture + 契约测�
 
 ## 验证边界
 
-当前仓库包含 Runtime、契约、安全和桌面相关测试，以及 PyInstaller/Electron 打包脚本。干净 Windows VM 安装/升级/卸载、真实代码签名、自动更新源、完整 Playwright E2E 和真实 Codex 环境 smoke 仍需要独立发布级证据，不能仅凭源码存在宣称通过。
+当前仓库包含 Runtime、契约、安全、并行终端和 Playwright ATDD，以及 PyInstaller/Electron 打包脚本。干净 Windows VM 安装/升级/卸载、真实代码签名和自动更新源仍需要独立发布级证据，不能仅凭源码存在宣称通过。

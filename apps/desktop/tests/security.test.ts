@@ -62,4 +62,14 @@ describe('Preload security', () => {
     expect(source).toContain("ipcRenderer.invoke('gate:evaluate',p,r,g,rev)")
     expect(source).not.toContain("ipcRenderer.invoke('gate:evaluate',g,s)")
   })
+
+  it('terminal bridge exposes only controlled session operations', () => {
+    const source = fs.readFileSync(PRELOAD_PATH, 'utf-8')
+    for (const method of ['createTerminal', 'writeTerminal', 'resizeTerminal', 'stopTerminal', 'restartTerminal']) {
+      expect(source).toContain(`${method}:`)
+    }
+    expect(source).not.toContain('spawnTerminal:')
+    expect(source).not.toContain('executablePath: (')
+    expect(source).not.toContain('cwd: (')
+  })
 })

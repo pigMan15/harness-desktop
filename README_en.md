@@ -74,10 +74,11 @@ harness-desktop/
 
 | Area | Current implementation |
 | --- | --- |
-| Projects and Runs | Import/list/validate projects; create/list runs with user supplied intent/risk. |
-| Workflow | Read, compile, diff, apply, simulate, draft, version, and ZIP workflow support. |
+| Projects and Runs | Create, select, pause, resume, and archive multiple authoritative runs with isolated worktrees. |
+| Native Codex Terminal | Discover or select Codex and run independent node-pty/ConPTY sessions per run with ANSI, paste, resize, stop, and restart. |
+| Workflow | Edit every linear route, nodes, roles, artifacts, gates, recovery, rules, YAML, imports/exports, versions, and restore. |
 | Gates and Artifacts | Deterministic gate checks, verifier-only G3-G8 policy, safe artifact preview. |
-| Execution | Runtime execution API with Fake, Bridle, and Codex adapter foundations. |
+| Node lifecycle | Explicit complete/confirm/reject operations validate revision and artifacts; terminal exit never advances a node. |
 | Approvals | Policy classification for file, command, network, deploy, delete, permission, and Git actions. |
 | Recovery and Knowledge | Recovery scans/cleanup and reviewed knowledge promotion. |
 | Packaging | PyInstaller spec, runtime packaging script, Electron Forge Squirrel maker. |
@@ -144,4 +145,4 @@ Do not place the fresh package output under `apps/desktop`; old `out/` directori
 
 ## Verification Boundaries
 
-The repository contains unit, contract, security, and runtime tests. Some release-level requirements still need external evidence, especially clean Windows VM install/upgrade/uninstall validation, real code signing, update infrastructure, and full Playwright E2E scenarios.
+The repository contains unit, contract, security, concurrent terminal, Runtime, and Playwright ATDD tests. Clean Windows VM install/upgrade/uninstall validation, real code signing, and update infrastructure still require external release evidence.

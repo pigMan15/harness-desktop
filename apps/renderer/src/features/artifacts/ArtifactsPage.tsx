@@ -26,8 +26,8 @@ function ArtifactsContent(): React.ReactElement {
   }
 
   return (
-    <div style={{ padding: 24 }}>
-      <h2>Artifacts</h2>
+    <section className="page">
+      <header className="page-header"><div><h1>Artifacts</h1>{activeRun && <span className="muted mono">Run {activeRun.run_id} · {activeRun.phase_dir}</span>}</div></header>
       {msg && <p style={{ color: '#c62828', background: '#ffebee', padding: 8, borderRadius: 4 }}>{msg}</p>}
       <div style={{ display: 'flex', gap: 24, marginTop: 16 }}>
         <div style={{ flex: 1, maxWidth: 300 }}>
@@ -57,7 +57,7 @@ function ArtifactsContent(): React.ReactElement {
           ) : <p style={{ color: '#999' }}>Select an artifact to preview its content.</p>}
         </div>
       </div>
-    </div>
+    </section>
   )
 }
 

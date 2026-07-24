@@ -1,5 +1,7 @@
 # Harness Desktop Implementation Plan
 
+> 2026-07-24 状态补充：多 Run、原生 Codex PTY、显式节点推进、动态 Gate、完整线性 Workflow Studio、终端投影和脱敏诊断已纳入 `multirun-codex-terminal-implementation-20260724` 实施 run。最终编译、打包、真实 Codex 和发布证据以该 run 的 `12-compile.md` 至 `19-knowledge-promotion.md` 为准。
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use `superpowers:subagent-driven-development` (recommended) or `superpowers:executing-plans` to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** 构建一个 Windows 首发、严格兼容 `.harness` v1.0、支持安全自定义线性编排并可驱动 Codex 的 Harness Desktop。

@@ -96,6 +96,35 @@ def load_workflow(project_root: Path) -> WorkflowDefinition:
         raise ProtocolLoadError("WORKFLOW_VALIDATION_FAILED", str(e), pointer="/")
 
 
+def load_gate_config(project_root: Path) -> dict[str, Any]:
+    """Load the project's gate definitions without hardcoding standard IDs."""
+    path = _resolve_safe(project_root, ".harness/evals/gates.yaml")
+    if not path.is_file():
+        raise ProtocolLoadError("GATES_MISSING", f"gates.yaml not found at {path}")
+    try:
+        data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    except yaml.YAMLError as exc:
+        raise ProtocolLoadError("GATES_INVALID_YAML", str(exc), pointer="/") from exc
+    gates = data.get("gates")
+    if not isinstance(gates, dict):
+        raise ProtocolLoadError("GATES_TYPE", "gates must be a mapping", pointer="/gates")
+    normalized: dict[str, Any] = {}
+    for gate_id, definition in gates.items():
+        if not isinstance(gate_id, str) or not isinstance(definition, dict):
+            raise ProtocolLoadError(
+                "GATE_DEFINITION_INVALID", "gate definitions must be mappings", pointer="/gates"
+            )
+        artifacts = definition.get("required_artifacts", [])
+        if not isinstance(artifacts, list) or not all(isinstance(item, str) for item in artifacts):
+            raise ProtocolLoadError(
+                "GATE_ARTIFACTS_INVALID",
+                f"required_artifacts for {gate_id} must be a string list",
+                pointer=f"/gates/{gate_id}/required_artifacts",
+            )
+        normalized[gate_id] = {**definition, "required_artifacts": artifacts}
+    return {**data, "gates": normalized}
+
+
 def load_project(project_root: Path, deep_validate: bool = True) -> dict[str, Any]:
     """Load a complete .harness v1.0 project.
 

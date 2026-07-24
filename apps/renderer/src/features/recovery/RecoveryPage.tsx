@@ -1,4 +1,5 @@
 import React, { useState } from 'react'
+import { Download } from 'lucide-react'
 import { ProjectRequired, useWorkspace } from '../layout/WorkspaceContext'
 
 interface RecoverySession {
@@ -18,6 +19,7 @@ function RecoveryContent(): React.ReactElement {
   const [sessions, setSessions] = useState<RecoverySession[]>([])
   const [cleaned, setCleaned] = useState<string[]>([])
   const [message, setMessage] = useState('')
+  const [diagnostics, setDiagnostics] = useState<Record<string, unknown>>()
 
   async function scan(): Promise<void> {
     setMessage('Scanning...')
@@ -43,6 +45,7 @@ function RecoveryContent(): React.ReactElement {
     <header className="page-header"><h1>Recovery</h1><div className="actions">
       <button className="button" onClick={() => void scan()}>Scan sessions</button>
       <button className="button" onClick={() => void cleanup()}>Cleanup temp files</button>
+      <button className="button" onClick={() => void window.harness?.exportDiagnostics(selectedProjectId).then((result) => { setDiagnostics(result); setMessage('Redacted diagnostics generated') })}><Download size={15} />Diagnostics</button>
     </div></header>
     {message && <div className="notice">{message}</div>}
     <div className="panel" style={{ marginTop: 14 }}>
@@ -57,6 +60,7 @@ function RecoveryContent(): React.ReactElement {
       ))}
     </div>
     {cleaned.length > 0 && <div className="panel" style={{ marginTop: 14, padding: 12 }}>{cleaned.map((file) => <div key={file} className="mono" style={{ fontSize: 12 }}>{file}</div>)}</div>}
+    {diagnostics && <details className="semantic-diff" open><summary>Redacted diagnostics</summary><pre>{JSON.stringify(diagnostics, null, 2)}</pre></details>}
   </section>
 }
 

@@ -73,6 +73,27 @@ CREATE TABLE IF NOT EXISTS executor_sessions (
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+CREATE TABLE IF NOT EXISTS terminal_sessions (
+    id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    run_id TEXT NOT NULL,
+    node_id TEXT NOT NULL,
+    kind TEXT NOT NULL DEFAULT 'codex',
+    executable_path TEXT NOT NULL DEFAULT '',
+    cwd TEXT NOT NULL DEFAULT '',
+    pid INTEGER,
+    status TEXT NOT NULL,
+    cols INTEGER NOT NULL DEFAULT 120,
+    rows INTEGER NOT NULL DEFAULT 30,
+    sequence INTEGER NOT NULL DEFAULT 0,
+    started_at TEXT NOT NULL,
+    ended_at TEXT,
+    exit_code INTEGER,
+    summary TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
 CREATE TABLE IF NOT EXISTS audit_events (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
@@ -93,4 +114,8 @@ CREATE TABLE IF NOT EXISTS request_dedup (
 CREATE INDEX IF NOT EXISTS idx_audit_project_run ON audit_events(project_id, run_id);
 CREATE INDEX IF NOT EXISTS idx_sessions_project ON executor_sessions(project_id, status);
 CREATE INDEX IF NOT EXISTS idx_sessions_project_run ON executor_sessions(project_id, run_id, status);
+CREATE INDEX IF NOT EXISTS idx_terminal_project_run ON terminal_sessions(project_id, run_id, status);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_terminal_active_owner
+ON terminal_sessions(project_id, run_id, node_id)
+WHERE status IN ('starting', 'running');
 """

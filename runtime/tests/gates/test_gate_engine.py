@@ -78,3 +78,35 @@ class TestGateEngine:
         result = evaluate_gate("G3_COMPILE", state, tmp_phase, caller_role="developer")
         assert result["status"] == "FAIL"
         assert result["reason"] == "GATE_PERMISSION_DENIED"
+
+    def test_custom_gate_uses_configured_required_artifacts(self, tmp_phase):
+        (tmp_phase / "custom-proof.json").write_text("{}", encoding="utf-8")
+        state = {"gates": {"CUSTOM_SECURITY": "NOT_RUN"}, "retry_counts": {}}
+
+        result = evaluate_gate(
+            "CUSTOM_SECURITY",
+            state,
+            tmp_phase,
+            caller_role="verifier",
+            required_artifacts={"CUSTOM_SECURITY": ["custom-proof.json"]},
+        )
+
+        assert result["status"] == "PASS"
+
+    def test_failure_recovery_uses_configured_retry_limit(self, tmp_phase):
+        state = {
+            "gates": {"G1_REQUIREMENTS": "NOT_RUN"},
+            "retry_counts": {"G1_REQUIREMENTS": 1},
+            "blocked_by": [],
+        }
+        recovery = {
+            "max_auto_retries_per_gate": 1,
+            "gate_to_node": {"G1_REQUIREMENTS": "REQUIREMENT_REVIEW"},
+        }
+
+        result = evaluate_gate(
+            "G1_REQUIREMENTS", state, tmp_phase, failure_recovery=recovery
+        )
+
+        assert result["status"] == "BLOCKED"
+        assert state["retry_counts"]["G1_REQUIREMENTS"] == 2

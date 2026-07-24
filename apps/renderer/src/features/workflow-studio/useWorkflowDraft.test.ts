@@ -41,4 +41,15 @@ describe('useWorkflowDraft', () => {
 
     expect(useWorkflowDraft.getState().diagnostics[0].code).toBe('UNKNOWN_GATE')
   })
+
+  it('edits and duplicates catalog nodes while preserving undo history', () => {
+    useWorkflowDraft.getState().addNode({ id: 'CUSTOM_REVIEW', role: 'tester', artifact: '20-custom-review.md', gates: [] })
+    useWorkflowDraft.getState().updateNode('CUSTOM_REVIEW', { role: 'verifier', gates: ['G4_UNIT_TEST'] })
+    useWorkflowDraft.getState().duplicateNode('CUSTOM_REVIEW')
+
+    expect(useWorkflowDraft.getState().nodes[0].role).toBe('verifier')
+    expect(useWorkflowDraft.getState().nodes[1].id).toBe('CUSTOM_REVIEW_COPY')
+    useWorkflowDraft.getState().undo()
+    expect(useWorkflowDraft.getState().nodes).toHaveLength(1)
+  })
 })

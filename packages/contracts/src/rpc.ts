@@ -96,7 +96,19 @@ export interface RunSummary {
   branch_name?: string
   worktree_path?: string
   worktree_status?: string
+  archived?: boolean
+  archived_at?: string
 }
+
+export type TerminalStatus = 'starting' | 'running' | 'exited' | 'failed' | 'stopped' | 'interrupted'
+export interface TerminalCreateRequest { projectId: string; runId: string; kind: 'codex' | 'shell'; cols: number; rows: number }
+export interface TerminalSessionSummary {
+  sessionId: string; projectId: string; runId: string; nodeId: string; kind: 'codex' | 'shell'
+  executablePath: string; cwd: string; pid?: number; status: TerminalStatus; startedAt: string
+  endedAt?: string; exitCode?: number; cols: number; rows: number; sequence: number; summary: string
+}
+export interface TerminalEvent extends Partial<TerminalSessionSummary> { sessionId: string; projectId: string; runId: string; nodeId: string; sequence: number; data?: string }
+export interface CodexSettings { executablePath: string; version: string; lastProbeStatus: 'available' | 'unavailable'; lastProbeAt: string; source: 'user' | 'environment' | 'hermes' | 'path' }
 
 export interface WorkflowNode {
   id: string
@@ -115,20 +127,49 @@ export interface HarnessApi {
   listProjects: () => Promise<ProjectSummary[] | { error: string }>
   importProject: (path: string) => Promise<ProjectSummary | { error: string }>
   validateProject: (path: string) => Promise<Record<string, unknown>>
+  repairProject: (projectId: string) => Promise<Record<string, unknown>>
+  unregisterProject: (projectId: string) => Promise<Record<string, unknown>>
+  relocateProject: (projectId: string) => Promise<Record<string, unknown>>
   listRuns: (projectId: string) => Promise<RunSummary[] | { error: string }>
   createRun: (projectId: string, intent: string, risk: string, runId: string, expectedRevision?: string) => Promise<Record<string, unknown>>
   switchRun: (projectId: string, runId: string, expectedRevision?: string) => Promise<Record<string, unknown>>
   pauseRun: (projectId: string, runId: string, expectedRevision?: string) => Promise<Record<string, unknown>>
   resumeRun: (projectId: string, runId: string, expectedRevision?: string) => Promise<Record<string, unknown>>
-  getWorkflow: (projectId: string) => Promise<Record<string, unknown>>
+  archiveRun: (projectId: string, runId: string, expectedRevision?: string) => Promise<Record<string, unknown>>
+  getRunExecutionContext: (projectId: string, runId: string, expectedRevision?: string) => Promise<Record<string, unknown>>
+  completeNode: (projectId: string, runId: string, expectedRevision?: string) => Promise<Record<string, unknown>>
+  confirmNode: (projectId: string, runId: string, decision: 'accept' | 'reject' | 'defer', comment: string, expectedRevision?: string) => Promise<Record<string, unknown>>
+  rejectNode: (projectId: string, runId: string, comment: string, expectedRevision?: string) => Promise<Record<string, unknown>>
+  getWorkflow: (projectId: string, runId?: string) => Promise<Record<string, unknown>>
   compileWorkflow: (projectId: string, intent: string, risk: string) => Promise<Record<string, unknown>>
-  previewWorkflow: (projectId: string, nodes: WorkflowNode[], intent: string, risk: string, route: string[]) => Promise<Record<string, unknown>>
+  previewWorkflow: (projectId: string, nodes: WorkflowNode[], intent: string, risk: string, route: string[], options?: Record<string, unknown>) => Promise<Record<string, unknown>>
   diffWorkflow: (projectId: string, yaml: string) => Promise<Record<string, unknown>>
+  previewWorkflowYaml: (projectId: string, yaml: string) => Promise<Record<string, unknown>>
   applyWorkflow: (projectId: string, yaml: string, expectedHash: string) => Promise<Record<string, unknown>>
+  importWorkflow: (projectId: string) => Promise<Record<string, unknown>>
+  exportWorkflow: (projectId: string, format: 'yaml' | 'zip') => Promise<Record<string, unknown>>
+  listWorkflowVersions: (projectId: string) => Promise<unknown>
+  restoreWorkflowVersion: (projectId: string, versionId: number, expectedHash: string) => Promise<Record<string, unknown>>
   listGates: (projectId: string, runId: string) => Promise<Record<string, unknown>>
   evaluateGate: (projectId: string, runId: string, gateId: string, expectedRevision?: string) => Promise<Record<string, unknown>>
+  waiveGate: (projectId: string, runId: string, gateId: string, scope: string, reason: string, owner: string, expectedRevision?: string) => Promise<Record<string, unknown>>
   listArtifacts: (projectId: string, runId: string) => Promise<unknown>
   readArtifact: (projectId: string, runId: string, filename: string) => Promise<unknown>
+  hashArtifact: (projectId: string, runId: string, filename: string) => Promise<unknown>
+  getCodexSettings: () => Promise<CodexSettings | { error: string } | undefined>
+  discoverCodex: () => Promise<Record<string, unknown>>
+  selectCodexExecutable: () => Promise<Record<string, unknown>>
+  createTerminal: (request: TerminalCreateRequest) => Promise<TerminalSessionSummary>
+  listTerminals: (projectId: string) => Promise<TerminalSessionSummary[]>
+  writeTerminal: (sessionId: string, data: string) => Promise<void>
+  getTerminalScrollback: (sessionId: string) => Promise<{ data: string; sequence: number }>
+  resizeTerminal: (sessionId: string, cols: number, rows: number) => Promise<void>
+  stopTerminal: (sessionId: string) => Promise<TerminalSessionSummary>
+  restartTerminal: (sessionId: string) => Promise<TerminalSessionSummary>
+  onTerminalData: (callback: (event: TerminalEvent) => void) => () => void
+  onTerminalExit: (callback: (event: TerminalEvent) => void) => () => void
+  onTerminalStatus: (callback: (event: TerminalEvent) => void) => () => void
+  exportDiagnostics: (projectId: string) => Promise<Record<string, unknown>>
   listKnowledge: (projectId: string, status: string) => Promise<unknown>
   reviewKnowledge: (projectId: string, candidateId: number, decision: string) => Promise<unknown>
   probeExecution: (projectId: string) => Promise<Record<string, unknown>>
@@ -138,5 +179,5 @@ export interface HarnessApi {
   cancelExecution: (projectId: string, runId: string, sessionId: string) => Promise<unknown>
   scanRecovery: (projectId: string) => Promise<unknown>
   cleanupRecovery: (projectId: string) => Promise<unknown>
-  onRuntimeEvent: (channel: string, callback: (...args: unknown[]) => void) => void
+  onRuntimeEvent: (channel: string, callback: (...args: unknown[]) => void) => () => void
 }

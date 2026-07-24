@@ -1,4 +1,5 @@
 import React, { useState } from 'react'
+import { MapPin, RefreshCw, Trash2, Wrench } from 'lucide-react'
 import type { ProjectSummary } from '../../app/harness-api'
 import { useWorkspace } from '../layout/WorkspaceContext'
 import { runProjectImport } from './project-import'
@@ -36,12 +37,25 @@ export function ProjectsPage(): React.ReactElement {
     catch (cause) { setNotice({ kind: 'error', message: cause instanceof Error ? cause.message : 'Selection failed' }) }
   }
 
+  async function maintain(action: 'repair' | 'relocate' | 'unregister', project: ProjectSummary): Promise<void> {
+    if (!window.harness) return
+    if (action === 'unregister' && !window.confirm(`Unregister ${project.name}? Project files will be kept.`)) return
+    setNotice(undefined)
+    try {
+      const result = action === 'repair' ? await window.harness.repairProject(project.projectId)
+        : action === 'relocate' ? await window.harness.relocateProject(project.projectId)
+          : await window.harness.unregisterProject(project.projectId)
+      if (result.error && result.error !== 'cancelled') throw new Error(String(result.error))
+      await refreshProjects()
+    } catch (cause) { setNotice({ kind: 'error', message: cause instanceof Error ? cause.message : `${action} failed` }) }
+  }
+
   return (
     <section className="page">
       <header className="page-header">
         <h1>Projects</h1>
         <div className="actions">
-          <button className="button icon-button" onClick={() => void refreshProjects()} title="Refresh projects" aria-label="Refresh projects">R</button>
+          <button className="button icon-button" onClick={() => void refreshProjects()} title="Refresh projects" aria-label="Refresh projects"><RefreshCw size={15} /></button>
           <button className="button primary" onClick={() => void importProject()} disabled={importing}>{importing ? 'Importing...' : 'Import project'}</button>
         </div>
       </header>
@@ -62,7 +76,12 @@ export function ProjectsPage(): React.ReactElement {
                   <td><span className={`badge ${project.health === 'healthy' ? 'success' : 'warning'}`}>{project.health}</span></td>
                   <td>v{project.protocolVersion}</td>
                   <td style={{ textAlign: 'right' }}>
-                    <button className="button" disabled={selected} onClick={() => void choose(project)}>{selected ? 'Selected' : 'Select'}</button>
+                    <div className="actions" style={{ justifyContent: 'flex-end' }}>
+                      {project.health !== 'healthy' && <button className="button icon-button" title="Repair project registration" onClick={() => void maintain('repair', project)}><Wrench size={15} /></button>}
+                      <button className="button icon-button" title="Relocate project" onClick={() => void maintain('relocate', project)}><MapPin size={15} /></button>
+                      <button className="button" disabled={selected} onClick={() => void choose(project)}>{selected ? 'Selected' : 'Select'}</button>
+                      <button className="button icon-button danger" title="Unregister project" onClick={() => void maintain('unregister', project)}><Trash2 size={15} /></button>
+                    </div>
                   </td>
                 </tr>
               )

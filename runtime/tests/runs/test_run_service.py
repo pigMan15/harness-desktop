@@ -7,8 +7,10 @@ from pathlib import Path
 import pytest
 
 from harness_runtime.runs.service import (
+    archive_run,
     create_run,
     create_run_and_activate,
+    get_execution_context,
     list_runs,
     pause_active_run,
     pause_run,
@@ -206,3 +208,68 @@ class TestPersistedRunLifecycle:
         selected, _ = read_state(writable_project)
         assert authoritative["notes"] == "authoritative"
         assert selected["notes"] == "authoritative"
+
+    def test_archive_marks_only_requested_run(self, writable_project):
+        first, first_revision = create_run_and_activate(
+            writable_project, "FEATURE", "LOW", "archive-first"
+        )
+        second, second_revision = create_run_and_activate(
+            writable_project, "FEATURE", "LOW", "archive-second"
+        )
+
+        archived, _ = archive_run(
+            writable_project, first["run_id"], expected_revision=first_revision
+        )
+        unchanged, unchanged_revision = read_run_state(writable_project, second["run_id"])
+
+        assert archived["archived"] is True
+        assert archived["archived_at"]
+        assert unchanged.get("archived") is not True
+        assert unchanged_revision == second_revision
+
+    def test_execution_context_persists_required_worktree(
+        self, writable_project, monkeypatch
+    ):
+        state, revision = create_run_and_activate(
+            writable_project, "FEATURE", "LOW", "context-run"
+        )
+        assigned = writable_project.parent / "assigned-worktree"
+        assigned.mkdir()
+        monkeypatch.setattr(
+            "harness_runtime.runs.service.ensure_run_worktree",
+            lambda *_args: {
+                "branch_name": "codex/context-run",
+                "worktree_path": str(assigned),
+                "worktree_status": "ready",
+            },
+        )
+
+        context = get_execution_context(
+            writable_project, state["run_id"], expected_revision=revision
+        )
+        persisted, _ = read_run_state(writable_project, state["run_id"])
+
+        assert context["terminalAllowed"] is True
+        assert context["worktreePath"] == str(assigned.resolve())
+        assert persisted["worktree_path"] == str(assigned)
+
+    def test_execution_context_blocks_instead_of_using_shared_root(
+        self, writable_project, monkeypatch
+    ):
+        from harness_runtime.runs.worktrees import WorktreeUnavailable
+
+        state, revision = create_run_and_activate(
+            writable_project, "FEATURE", "LOW", "blocked-context"
+        )
+        monkeypatch.setattr(
+            "harness_runtime.runs.service.ensure_run_worktree",
+            lambda *_args: (_ for _ in ()).throw(WorktreeUnavailable("NO_WORKTREE")),
+        )
+
+        context = get_execution_context(
+            writable_project, state["run_id"], expected_revision=revision
+        )
+
+        assert context["terminalAllowed"] is False
+        assert "NO_WORKTREE" in context["terminalBlockReason"]
+        assert context["worktreePath"] == ""

@@ -1,4 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react'
+import { Archive, Pause, Play, RefreshCw, SquareTerminal } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
 import type { RunSummary } from '../../app/harness-api'
 import { ProjectRequired, useWorkspace } from '../layout/WorkspaceContext'
 
@@ -17,7 +19,8 @@ function runFromState(state: Record<string, unknown>): RunSummary {
 }
 
 function TasksContent(): React.ReactElement {
-  const { selectedProjectId, revision, updateActiveRun } = useWorkspace()
+  const { selectedProjectId, selectedRunId, revision, terminalSessionsById, selectRun, updateActiveRun, refreshTerminals } = useWorkspace()
+  const navigate = useNavigate()
   const [runs, setRuns] = useState<RunSummary[]>([])
   const [showCreate, setShowCreate] = useState(false)
   const [intent, setIntent] = useState('FEATURE')
@@ -34,10 +37,11 @@ function TasksContent(): React.ReactElement {
       if (!Array.isArray(result)) throw new Error(result.error)
       setRuns(result)
       const selected = result.find((run) => run.active)
-      updateActiveRun(selected, selected?.revision)
+      if (selected && !selectedRunId) updateActiveRun(selected, selected.revision)
+      await refreshTerminals()
     } catch (cause) { setMessage(cause instanceof Error ? cause.message : 'Failed to load tasks') }
     finally { setBusy(false) }
-  }, [selectedProjectId, updateActiveRun])
+  }, [selectedProjectId, selectedRunId, updateActiveRun, refreshTerminals])
 
   useEffect(() => { void loadRuns() }, [loadRuns])
 
@@ -53,11 +57,11 @@ function TasksContent(): React.ReactElement {
     finally { setBusy(false) }
   }
 
-  async function runAction(action: 'switch' | 'pause' | 'resume', run: RunSummary): Promise<void> {
+  async function runAction(action: 'switch' | 'pause' | 'resume' | 'archive', run: RunSummary): Promise<void> {
     if (!window.harness) return
     setBusy(true); setMessage('')
     try {
-      const fn = action === 'switch' ? window.harness.switchRun : action === 'pause' ? window.harness.pauseRun : window.harness.resumeRun
+      const fn = action === 'switch' ? window.harness.switchRun : action === 'pause' ? window.harness.pauseRun : action === 'resume' ? window.harness.resumeRun : window.harness.archiveRun
       const result = await fn(selectedProjectId, run.run_id, run.revision || undefined)
       if (result.error) throw new Error(String(result.error))
       updateActiveRun(runFromState(result.run as Record<string, unknown>), String(result.revision || ''))
@@ -68,9 +72,9 @@ function TasksContent(): React.ReactElement {
 
   return (
     <section className="page">
-      <header className="page-header"><h1>Tasks</h1><div className="actions">
-        <button className="button icon-button" onClick={() => void loadRuns()} title="Refresh tasks" aria-label="Refresh tasks">R</button>
-        <button className="button primary" onClick={() => setShowCreate((value) => !value)}>+ New task</button>
+      <header className="page-header"><h1>Runs</h1><div className="actions">
+        <button className="button icon-button" onClick={() => void loadRuns()} title="Refresh runs" aria-label="Refresh runs"><RefreshCw size={15} /></button>
+        <button className="button primary" onClick={() => setShowCreate((value) => !value)}>New run</button>
       </div></header>
       {message && <div className="notice error">{message}</div>}
       {showCreate && <div className="panel form-row">
@@ -83,17 +87,21 @@ function TasksContent(): React.ReactElement {
       <div className="panel" style={{ marginTop: 14 }}>
         {runs.length === 0 && !busy ? <div className="empty-state"><h2>No tasks</h2><p>Create a task from the project workflow.</p></div> :
           <table className="data-table"><thead><tr><th>Run ID</th><th>Intent / Risk</th><th>Status</th><th>Current node</th><th>Progress</th><th /></tr></thead>
-          <tbody>{runs.map((run) => <tr key={run.run_id} className={run.active ? 'selected' : ''}>
-            <td className="mono"><strong>{run.run_id}</strong>{run.active && <span className="badge success" style={{ marginLeft: 8 }}>ACTIVE</span>}</td>
+          <tbody>{runs.filter((run) => !run.archived).map((run) => {
+            const terminal = Object.values(terminalSessionsById).find((item) => item.runId === run.run_id && (item.status === 'running' || item.status === 'starting'))
+            return <tr key={run.run_id} className={run.run_id === selectedRunId ? 'selected' : ''} onClick={() => void selectRun(run.run_id).catch((cause) => setMessage(cause instanceof Error ? cause.message : 'Selection failed'))}>
+            <td className="mono"><strong>{run.run_id}</strong>{run.run_id === selectedRunId && <span className="badge success" style={{ marginLeft: 8 }}>SELECTED</span>}</td>
             <td>{run.intent} <span className="muted">/ {run.risk}</span></td>
             <td><span className={`badge ${run.status === 'BLOCKED' ? 'danger' : run.status === 'DONE' ? 'success' : ''}`}>{run.status}</span></td>
             <td>{run.current_node}</td><td>{run.completed_nodes.length}/{run.required_nodes.length}</td>
             <td><div className="actions" style={{ justifyContent: 'flex-end' }}>
-              {!run.active && <button className="button icon-button" title="Switch to task" onClick={() => void runAction('switch', run)}>S</button>}
-              {run.active && run.blocked_by.includes('user_paused') && <button className="button icon-button" title="Resume task" onClick={() => void runAction('resume', run)}>&gt;</button>}
-              {run.active && !run.blocked_by.includes('user_paused') && <button className="button icon-button" title="Pause task" onClick={() => void runAction('pause', run)}>||</button>}
+              {terminal && <button className="button" title="Open running terminal" onClick={(event) => { event.stopPropagation(); void selectRun(run.run_id).then(() => navigate('/execution')).catch((cause) => setMessage(cause instanceof Error ? cause.message : 'Selection failed')) }}><SquareTerminal size={15} /><span className="badge success">{terminal.status}</span></button>}
+              {!run.active && <button className="button" title="Make selected run authoritative" onClick={(event) => { event.stopPropagation(); void runAction('switch', run) }}>Select</button>}
+              {run.blocked_by.includes('user_paused') && <button className="button icon-button" title="Resume run" onClick={(event) => { event.stopPropagation(); void runAction('resume', run) }}><Play size={15} /></button>}
+              {!run.blocked_by.includes('user_paused') && <button className="button icon-button" title="Pause run" onClick={(event) => { event.stopPropagation(); void runAction('pause', run) }}><Pause size={15} /></button>}
+              <button className="button icon-button" title="Archive run" onClick={(event) => { event.stopPropagation(); void runAction('archive', run) }}><Archive size={15} /></button>
             </div></td>
-          </tr>)}</tbody></table>}
+          </tr>})}</tbody></table>}
       </div>
     </section>
   )

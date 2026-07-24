@@ -22,7 +22,7 @@ Write-Host "=== Harness Desktop Packaging ===" -ForegroundColor Cyan
 
 # 1. Check prerequisites
 Write-Host "[1/5] Checking prerequisites..."
-if (-not (Get-Command pnpm -ErrorAction SilentlyContinue)) {
+if (-not (Get-Command pnpm.cmd -ErrorAction SilentlyContinue)) {
     Write-Error "pnpm not found. Install with: npm install -g pnpm"
     exit 1
 }
@@ -35,7 +35,7 @@ if (-not (Test-Path $runtime_exe)) {
 
 # 2. Install Electron deps
 Write-Host "[2/5] Installing dependencies..."
-pnpm install --filter @harness/desktop
+pnpm.cmd install --filter @harness/desktop
 
 # 3. Copy Runtime into Electron resources
 Write-Host "[3/5] Bundling Runtime..."
@@ -45,12 +45,12 @@ Copy-Item $runtime_exe "$resources/harness-runtime.exe" -Force
 
 # 4. TypeCheck + Test
 Write-Host "[4/5] Running tests..."
-pnpm typecheck
+pnpm.cmd typecheck
 python -m pytest runtime/tests -q
 
 # 5. Build installer
 Write-Host "[5/5] Building installer..."
-pnpm --filter @harness/desktop package
+pnpm.cmd --filter @harness/desktop package
 
 $installer = Get-ChildItem -Path "out/make" -Recurse -Filter "*.exe" | Select-Object -First 1
 if ($installer) {

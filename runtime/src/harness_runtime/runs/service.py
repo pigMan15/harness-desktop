@@ -17,6 +17,7 @@ from ..persistence.state_store import (
 from ..protocol.loader import load_workflow
 from ..workflow.compiler import compile_workflow
 from .identifiers import validate_run_id
+from .worktrees import WorktreeUnavailable, ensure_run_worktree
 
 VALID_INTENTS = {"UNKNOWN", "QUERY", "BUG_FIX", "FEATURE", "REFACTOR", "DEPLOYMENT", "INCIDENT"}
 VALID_RISKS = {"UNKNOWN", "NA", "LOW", "MEDIUM", "HIGH"}
@@ -117,6 +118,8 @@ def list_runs(project_root: Path) -> list[dict]:
                 "branch_name": state.get("branch_name"),
                 "worktree_path": state.get("worktree_path"),
                 "worktree_status": state.get("worktree_status"),
+                "archived": bool(state.get("archived", False)),
+                "archived_at": state.get("archived_at"),
             }
         )
     return runs
@@ -219,3 +222,127 @@ def resume_active_run(
         expected_revision=expected_revision if expected_revision is not None else current_revision,
     )
     return resumed, revision
+
+
+def archive_run(
+    project_root: Path,
+    run_id: str,
+    expected_revision: Optional[str] = None,
+) -> tuple[dict, str]:
+    """Archive an inactive Run without deleting its authoritative files."""
+    state, current_revision = read_run_state(project_root, run_id)
+    if not state:
+        raise ValueError(f"RUN_NOT_FOUND: {run_id}")
+    active_sessions = [
+        session
+        for session in state.get("terminal_sessions", {}).values()
+        if session.get("status") in {"starting", "running"}
+    ]
+    if active_sessions:
+        raise RuntimeError("RUN_ARCHIVE_ACTIVE_SESSION")
+    if state.get("worktree_status") in {"ready", "active", "dirty"}:
+        raise RuntimeError("RUN_ARCHIVE_UNMERGED_WORKTREE")
+
+    state["archived"] = True
+    state["archived_at"] = datetime.now(timezone.utc).isoformat()
+    state["notes"] = "Run archived by user; authoritative files retained."
+    revision = write_run_state(
+        project_root,
+        run_id,
+        state,
+        expected_revision=(
+            expected_revision if expected_revision is not None else current_revision
+        ),
+    )
+    return state, revision
+
+
+def get_execution_context(
+    project_root: Path,
+    run_id: str,
+    expected_revision: Optional[str] = None,
+) -> dict:
+    """Return Runtime-authorized execution paths for one Run."""
+    state, current_revision = read_run_state(project_root, run_id)
+    if not state:
+        raise ValueError(f"RUN_NOT_FOUND: {run_id}")
+    if expected_revision is not None and expected_revision != current_revision:
+        raise RuntimeError("REVISION_CONFLICT")
+    if state.get("archived"):
+        return _execution_context_result(
+            project_root, state, current_revision, False, "RUN_ARCHIVED"
+        )
+    if state.get("status") == "BLOCKED" and "user_paused" in state.get("blocked_by", []):
+        return _execution_context_result(
+            project_root, state, current_revision, False, "RUN_PAUSED"
+        )
+
+    requires_worktree = "DEVELOPMENT" in state.get("required_nodes", [])
+    if requires_worktree:
+        try:
+            # 代码修改型 Run 绝不回退到共享项目根目录；失败必须持久化为可诊断 BLOCKED。
+            assigned = ensure_run_worktree(project_root, run_id)
+            if any(state.get(key) != value for key, value in assigned.items()):
+                state.update(assigned)
+                current_revision = write_run_state(
+                    project_root,
+                    run_id,
+                    state,
+                    expected_revision=current_revision,
+                )
+        except WorktreeUnavailable as exc:
+            reason = f"WORKTREE_UNAVAILABLE: {exc}"
+            state["status"] = "BLOCKED"
+            marker = f"worktree_unavailable:{exc}"
+            if marker not in state.setdefault("blocked_by", []):
+                state["blocked_by"].append(marker)
+            state["worktree_status"] = "blocked"
+            state["notes"] = reason
+            current_revision = write_run_state(
+                project_root,
+                run_id,
+                state,
+                expected_revision=current_revision,
+            )
+            return _execution_context_result(
+                project_root, state, current_revision, False, reason
+            )
+
+    execution_root = Path(state.get("worktree_path") or project_root).resolve()
+    if not execution_root.is_dir():
+        return _execution_context_result(
+            project_root,
+            state,
+            current_revision,
+            False,
+            f"EXECUTION_ROOT_MISSING: {execution_root}",
+        )
+    return _execution_context_result(project_root, state, current_revision, True, "")
+
+
+def _execution_context_result(
+    project_root: Path,
+    state: dict,
+    revision: str,
+    terminal_allowed: bool,
+    block_reason: str,
+) -> dict:
+    execution_root = Path(state.get("worktree_path") or project_root).resolve()
+    execution_root_text = (
+        ""
+        if not terminal_allowed and state.get("worktree_status") == "blocked"
+        else str(execution_root)
+    )
+    return {
+        "runId": state.get("run_id", ""),
+        "revision": revision,
+        "status": state.get("status", ""),
+        "currentNode": state.get("current_node", ""),
+        "nextRole": state.get("next_role", ""),
+        "phaseDir": state.get("phase_dir", ""),
+        "projectRoot": str(project_root.resolve()),
+        "worktreePath": execution_root_text,
+        "branchName": state.get("branch_name", ""),
+        "terminalAllowed": terminal_allowed,
+        "terminalBlockReason": block_reason,
+    }

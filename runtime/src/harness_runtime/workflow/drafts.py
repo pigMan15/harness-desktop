@@ -157,6 +157,10 @@ def preview_structured_draft(
     intent: str,
     risk: str,
     route: list[str],
+    routes: Optional[dict] = None,
+    hard_rules: Optional[dict] = None,
+    failure_recovery: Optional[dict] = None,
+    gate_meanings: Optional[dict] = None,
 ) -> dict:
     """Merge one edited route into the complete workflow and compile it without writing."""
     wf_path = project_root / ".harness" / "workflow.yaml"
@@ -176,9 +180,17 @@ def preview_structured_draft(
 
         # Renderer 只提交节点目录和当前路线；其余路线与安全规则始终由 Runtime 保留。
         merged["nodes"] = nodes
-        routes = merged.setdefault("routes", {})
-        intent_routes = routes.setdefault(intent, {})
+        if routes is not None:
+            merged["routes"] = routes
+        route_map = merged.setdefault("routes", {})
+        intent_routes = route_map.setdefault(intent, {})
         intent_routes[risk] = route
+        if hard_rules is not None:
+            merged["hard_rules"] = hard_rules
+        if failure_recovery is not None:
+            merged["failure_recovery"] = failure_recovery
+        if gate_meanings is not None:
+            merged["gate_meanings"] = gate_meanings
         preview_yaml = yaml.safe_dump(
             merged,
             allow_unicode=True,
@@ -276,8 +288,9 @@ def apply_draft(project_root: Path, yaml_content: str, expected_hash: Optional[s
     if wf_path.is_file() and not expected_hash:
         return {"success": False, "error": "EXPECTED_HASH_REQUIRED"}
     if wf_path.is_file() and expected_hash:
-        with open(wf_path, "rb") as f:
-            current_hash = hashlib.sha256(f.read()).hexdigest()
+        # Windows 会把工作区换行写成 CRLF；契约哈希按 UTF-8 文本语义计算，必须与 workflow.get 一致。
+        current_text = wf_path.read_text(encoding="utf-8")
+        current_hash = hashlib.sha256(current_text.encode("utf-8")).hexdigest()
         if current_hash != expected_hash:
             return {"success": False, "error": "HASH_MISMATCH",
                     "current_hash": current_hash, "expected_hash": expected_hash}

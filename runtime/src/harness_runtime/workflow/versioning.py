@@ -19,13 +19,14 @@ def save_version(project_id: str, yaml_content: str, author: str = "unknown", su
     db = get_db()
     content_hash = hashlib.sha256(yaml_content.encode()).hexdigest()
     now = datetime.now(timezone.utc).isoformat()
-    db.execute(
+    cursor = db.execute(
         """INSERT INTO workflow_versions (project_id, content_hash, yaml_content, author, summary, created_at)
            VALUES (?, ?, ?, ?, ?, ?)""",
         (project_id, content_hash, yaml_content, author, summary, now),
     )
     db.commit()
     return {
+        "id": cursor.lastrowid,
         "project_id": project_id,
         "content_hash": content_hash,
         "author": author,
@@ -73,3 +74,28 @@ def get_version(project_id: str, version_id: int) -> Optional[dict]:
         "summary": row["summary"],
         "created_at": row["created_at"],
     }
+
+
+def restore_version(
+    project_id: str,
+    project_root,
+    version_id: int,
+    expected_hash: str,
+    author: str = "unknown",
+) -> dict:
+    """Restore through the same validated, locked, atomic apply pipeline."""
+    version = get_version(project_id, version_id)
+    if version is None:
+        return {"success": False, "error": "WORKFLOW_VERSION_NOT_FOUND"}
+    from .drafts import apply_draft
+
+    result = apply_draft(project_root, version["yaml_content"], expected_hash)
+    if not result.get("success"):
+        return result
+    saved = save_version(
+        project_id,
+        version["yaml_content"],
+        author=author,
+        summary=f"Restored workflow version {version_id}",
+    )
+    return {**result, "version": saved, "restoredVersionId": version_id}

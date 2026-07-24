@@ -1,5 +1,7 @@
 # Harness Desktop 最终架构方案
 
+> 2026-07-24 实施补充：Codex 主执行路径已调整为 Renderer/xterm.js -> typed preload -> Electron Main/TerminalManager -> node-pty/ConPTY -> `codex.exe`。旧 `app-server --stdio` 仅保留诊断兼容。每个代码修改 Run 必须有独立 worktree；终端退出不等于节点完成，节点推进仍由 Runtime 校验 revision、artifact 和确认元数据。
+
 ## 1. 文档状态
 
 - 状态：最终方案

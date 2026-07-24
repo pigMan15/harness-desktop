@@ -47,7 +47,14 @@ def main() -> None:
     config.port = port
     print(f"PORT:{port}", flush=True)
 
-    server.run()
+    from .terminals.projections import interrupt_active_sessions
+
+    # PTY 进程归 Electron Main 所有，Runtime 重启后只能把遗留投影标为中断，绝不能据此推进节点。
+    interrupt_active_sessions()
+    try:
+        server.run()
+    finally:
+        interrupt_active_sessions()
 
 
 if __name__ == "__main__":

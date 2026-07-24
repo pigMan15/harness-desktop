@@ -21,4 +21,13 @@ describe('workspace project context source contract', () => {
     expect(gates).toContain('evaluateGate(selectedProjectId, context.runId, gateId, context.revision)')
     expect(gates).not.toContain("['PASS', 'FAIL'")
   })
+
+  it('normalizes multiple runs and terminal sessions without rebinding on selection', () => {
+    const workspace = readFileSync(resolve('src/features/layout/WorkspaceContext.tsx'), 'utf-8')
+    expect(workspace).toContain('selectedRunId')
+    expect(workspace).toContain('runsById')
+    expect(workspace).toContain('terminalSessionsById')
+    expect(workspace).toContain('harness.selectedRunId.')
+    expect(workspace).not.toContain('setActiveRun(')
+  })
 })

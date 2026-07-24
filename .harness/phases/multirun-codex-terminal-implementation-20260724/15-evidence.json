@@ -1,0 +1,314 @@
+{
+  "run_id": "multirun-codex-terminal-implementation-20260724",
+  "intent": "FEATURE",
+  "risk": "HIGH",
+  "changed_files": [
+    "CHANGELOG.md",
+    "README.md",
+    "README_en.md",
+    "apps/desktop/forge.config.ts",
+    "apps/desktop/package.json",
+    "apps/desktop/resources/harness-runtime.exe",
+    "apps/desktop/src/main/codex-discovery.ts",
+    "apps/desktop/src/main/index.ts",
+    "apps/desktop/src/main/terminal-manager.ts",
+    "apps/desktop/src/preload/harness-api.ts",
+    "apps/desktop/src/preload/index.ts",
+    "apps/desktop/tests/codex-discovery.test.ts",
+    "apps/desktop/tests/packaging-config.test.ts",
+    "apps/desktop/tests/security.test.ts",
+    "apps/desktop/tests/terminal-manager.test.ts",
+    "apps/desktop/vite.main.config.ts",
+    "apps/desktop/vite.preload.config.ts",
+    "apps/renderer/package.json",
+    "apps/renderer/src/app/App.tsx",
+    "apps/renderer/src/app/harness-api.d.ts",
+    "apps/renderer/src/app/styles.css",
+    "apps/renderer/src/features/artifacts/ArtifactsPage.tsx",
+    "apps/renderer/src/features/gates/GatesPage.tsx",
+    "apps/renderer/src/features/layout/Sidebar.tsx",
+    "apps/renderer/src/features/layout/WorkspaceContext.test.ts",
+    "apps/renderer/src/features/layout/WorkspaceContext.tsx",
+    "apps/renderer/src/features/projects/ProjectsPage.tsx",
+    "apps/renderer/src/features/recovery/RecoveryPage.tsx",
+    "apps/renderer/src/features/runs/RunsPage.tsx",
+    "apps/renderer/src/features/settings/CodexSettingsPage.tsx",
+    "apps/renderer/src/features/terminal/TerminalPage.test.ts",
+    "apps/renderer/src/features/terminal/TerminalPage.tsx",
+    "apps/renderer/src/features/workflow-studio/NodeCatalog.tsx",
+    "apps/renderer/src/features/workflow-studio/RouteEditor.tsx",
+    "apps/renderer/src/features/workflow-studio/WorkflowCanvas.tsx",
+    "apps/renderer/src/features/workflow-studio/WorkflowInspector.tsx",
+    "apps/renderer/src/features/workflow-studio/useWorkflowDraft.test.ts",
+    "apps/renderer/src/features/workflow-studio/useWorkflowDraft.ts",
+    "apps/renderer/src/features/workflow/WorkflowPage.tsx",
+    "doc/desktop-architecture.md",
+    "doc/desktop-implementation-plan.md",
+    "docs/troubleshooting.md",
+    "docs/user-guide.md",
+    "docs/workflow-studio.md",
+    "package.json",
+    "packages/contracts/src/rpc.ts",
+    "packages/contracts/tests/rpc.test.ts",
+    "playwright.config.ts",
+    "pnpm-lock.yaml",
+    "pnpm-workspace.yaml",
+    "runtime/src/harness_runtime/api/app.py",
+    "runtime/src/harness_runtime/diagnostics/service.py",
+    "runtime/src/harness_runtime/gates/engine.py",
+    "runtime/src/harness_runtime/main.py",
+    "runtime/src/harness_runtime/nodes/service.py",
+    "runtime/src/harness_runtime/persistence/database.py",
+    "runtime/src/harness_runtime/projects/service.py",
+    "runtime/src/harness_runtime/protocol/loader.py",
+    "runtime/src/harness_runtime/runs/service.py",
+    "runtime/src/harness_runtime/terminals/projections.py",
+    "runtime/src/harness_runtime/workflow/drafts.py",
+    "runtime/src/harness_runtime/workflow/versioning.py",
+    "runtime/src/harness_runtime/workflow/zip_io.py",
+    "runtime/tests/api/test_multirun_terminal_workflow_api.py",
+    "runtime/tests/gates/test_gate_engine.py",
+    "runtime/tests/nodes/test_service.py",
+    "runtime/tests/runs/test_run_service.py",
+    "runtime/tests/terminals/test_projections.py",
+    "runtime/tests/workflow/test_drafts.py",
+    "schemas/rpc.schema.json",
+    "scripts/package-desktop.ps1",
+    "tests/e2e/multirun-terminal-workflow.spec.ts"
+  ],
+  "commands": [
+    {
+      "name": "全仓 TypeScript 静态编译",
+      "command": "pnpm.cmd typecheck",
+      "cwd": "G:\\Project\\ai\\harness-desktop\\.worktrees\\multirun-codex-terminal-implementation-20260724",
+      "exit_code": 0,
+      "result": "Desktop、Renderer 和 Contracts 全部通过；ATDD 修复后复验仍通过。"
+    },
+    {
+      "name": "Renderer 生产构建",
+      "command": "pnpm.cmd --filter @harness/renderer build",
+      "cwd": "G:\\Project\\ai\\harness-desktop\\.worktrees\\multirun-codex-terminal-implementation-20260724",
+      "exit_code": 0,
+      "result": "1786 个模块构建成功；存在非阻断的单 chunk 体积提示。"
+    },
+    {
+      "name": "Runtime Python 编译检查",
+      "command": "python -m compileall -q runtime/src",
+      "cwd": "G:\\Project\\ai\\harness-desktop\\.worktrees\\multirun-codex-terminal-implementation-20260724",
+      "exit_code": 0,
+      "result": "Runtime 源码无 Python 语法错误。"
+    },
+    {
+      "name": "TypeScript 单元测试",
+      "command": "pnpm.cmd test",
+      "cwd": "G:\\Project\\ai\\harness-desktop\\.worktrees\\multirun-codex-terminal-implementation-20260724",
+      "exit_code": 0,
+      "result": "G7 第二次人工恢复后最新复验为 Desktop 29、Renderer 16、Contracts 7，共 52 项通过。"
+    },
+    {
+      "name": "Runtime 完整测试",
+      "command": "设置 PYTHONPATH=<专用 worktree>/runtime/src 后运行 python -m pytest runtime/tests -q -p no:cacheprovider --basetemp <系统临时目录>",
+      "cwd": "G:\\Project\\ai\\harness-desktop\\.worktrees\\multirun-codex-terminal-implementation-20260724",
+      "exit_code": 0,
+      "result": "242 项通过，1 项因主机不允许创建符号链接而按条件跳过，无失败。"
+    },
+    {
+      "name": "Playwright ATDD 首次执行",
+      "command": "pnpm.cmd test:e2e -- --reporter=line",
+      "cwd": "G:\\Project\\ai\\harness-desktop\\.worktrees\\multirun-codex-terminal-implementation-20260724",
+      "exit_code": 1,
+      "result": "3 项通过、1 项失败；Runs 到 Terminal 的选择/导航问题已按恢复路由修复并复验。"
+    },
+    {
+      "name": "Playwright ATDD 重试 1",
+      "command": "pnpm.cmd test:e2e -- --reporter=line",
+      "cwd": "G:\\Project\\ai\\harness-desktop\\.worktrees\\multirun-codex-terminal-implementation-20260724",
+      "exit_code": 0,
+      "result": "4 项场景全部通过，G5 重试计数已清除。"
+    },
+    {
+      "name": "冻结 Runtime 构建",
+      "command": "py -3 -m PyInstaller harness-runtime.spec --clean --noconfirm --distpath ..\\dist --workpath ..\\build\\pyinstaller",
+      "cwd": "G:\\Project\\ai\\harness-desktop\\.worktrees\\multirun-codex-terminal-implementation-20260724\\runtime",
+      "exit_code": 0,
+      "result": "生成 20642858 字节的 harness-runtime.exe，SHA-256 为 EB303C35C90F7265381E366C2959C3B015EAD06082BF5D74150688EA58C807D5，并通过回环 health 冒烟。"
+    },
+    {
+      "name": "Electron Forge 预发布失败记录",
+      "command": "pnpm.cmd exec electron-forge make --arch=x64 --out-dir=../../out",
+      "cwd": "G:\\Project\\ai\\harness-desktop\\.worktrees\\multirun-codex-terminal-implementation-20260724\\apps\\desktop",
+      "exit_code": 1,
+      "result": "三次失败依次暴露 TS loader、Forge 7.4 entry/outDir、node: builtin external 问题；完整日志与恢复措施记录在 16-prerelease-deployment.md。"
+    },
+    {
+      "name": "G7 人工恢复验证",
+      "command": "pnpm.cmd typecheck && pnpm.cmd test && pnpm.cmd test:e2e -- --reporter=line",
+      "cwd": "G:\\Project\\ai\\harness-desktop\\.worktrees\\multirun-codex-terminal-implementation-20260724",
+      "exit_code": 0,
+      "result": "全仓类型检查通过，50 项 TypeScript 和 242 项 Runtime 测试通过，4 项 Playwright 场景通过；允许进入人工授权的 G7 重试。"
+    },
+    {
+      "name": "Electron Forge 人工恢复构建",
+      "command": "pnpm.cmd exec electron-forge make --arch=x64 --out-dir=../../out",
+      "cwd": "G:\\Project\\ai\\harness-desktop\\.worktrees\\multirun-codex-terminal-implementation-20260724\\apps\\desktop",
+      "exit_code": 0,
+      "result": "Main、Preload、Renderer、Electron x64 package 和 Squirrel distributable 全部成功；生成 Setup、NUPKG 和 RELEASES。该产物随后被 Codex 发现源码修复取代，发布前必须重建。"
+    },
+    {
+      "name": "真实 Codex 发现阻断复现",
+      "command": "运行生产 codex-discovery 模块，枚举 knownHermesCandidates 与 where.exe codex 并逐个执行 --version",
+      "cwd": "G:\\Project\\ai\\harness-desktop\\.worktrees\\multirun-codex-terminal-implementation-20260724",
+      "exit_code": 2,
+      "result": "修复前 available=false：Hermes shim 分别返回 ENOENT/EINVAL，WindowsApps 返回 EPERM，暴露未枚举 npm vendor binary 的真实缺陷。"
+    },
+    {
+      "name": "真实 Hermes Codex 发现恢复验证",
+      "command": "重新编译并运行生产 codex-discovery 模块，直接 probe Hermes npm vendor codex.exe --version",
+      "cwd": "G:\\Project\\ai\\harness-desktop\\.worktrees\\multirun-codex-terminal-implementation-20260724",
+      "exit_code": 0,
+      "result": "available=true，source=hermes，version=codex-cli 0.145.0，选中普通 x64 vendor codex.exe；没有经过 shell 或 cmd shim。"
+    },
+    {
+      "name": "G7 自动恢复 1 编译与单元复验",
+      "command": "pnpm.cmd typecheck；pnpm.cmd --filter @harness/renderer build；python -m compileall -q runtime/src；pnpm.cmd test；绑定专用 worktree PYTHONPATH 后运行完整 pytest",
+      "cwd": "G:\\Project\\ai\\harness-desktop\\.worktrees\\multirun-codex-terminal-implementation-20260724",
+      "exit_code": 0,
+      "result": "三个 TypeScript workspace、1786 模块生产构建和 Python compileall 通过；51 项 TypeScript 与 242 项 Runtime 测试通过，1 项符号链接场景按条件跳过。"
+    },
+    {
+      "name": "G7 自动恢复 1 Playwright ATDD",
+      "command": "使用系统 Chrome，复用 HTTP 200 的 Vite server，运行 pnpm.cmd exec playwright test --reporter=line --workers=1",
+      "cwd": "G:\\Project\\ai\\harness-desktop\\.worktrees\\multirun-codex-terminal-implementation-20260724",
+      "exit_code": 0,
+      "result": "4 项场景全部通过；此前缺失 Playwright 浏览器缓存和 webServer 父进程等待超时均作为基础设施失败保留在 14-atdd.md。"
+    },
+    {
+      "name": "G7 第二次人工恢复离线打包配置与复验",
+      "command": "为 Forge 增加可选 HARNESS_ELECTRON_ZIP_DIR；依次运行 Desktop 红绿测试、全仓 typecheck、Renderer build、Runtime compileall、52 项 TypeScript、242 项 Runtime 与 4 项 Playwright",
+      "cwd": "G:\\Project\\ai\\harness-desktop\\.worktrees\\multirun-codex-terminal-implementation-20260724",
+      "exit_code": 0,
+      "result": "确认 electronZipDir 可跳过 @electron/get 在线 checksum 下载；G3-G5 全部通过，1 项 Runtime 符号链接场景按条件跳过。"
+    },
+    {
+      "name": "最终 Electron ZIP 离线打包",
+      "command": "设置 HARNESS_ELECTRON_ZIP_DIR 后运行 pnpm.cmd exec electron-forge make --arch=x64 --out-dir=../../out",
+      "cwd": "G:\\Project\\ai\\harness-desktop\\.worktrees\\multirun-codex-terminal-implementation-20260724\\apps\\desktop",
+      "exit_code": 0,
+      "result": "约 62 秒完成 Main、Preload、Renderer、Electron x64 package 和 Squirrel；生成 23:08 的 Setup、NUPKG 与 RELEASES。该包随后暴露 PTY stop 风险并被生产修复取代，需再次重建。"
+    },
+    {
+      "name": "打包宿主系统 ConPTY 停止失败",
+      "command": "使用最终包 Electron ABI 加载 node-pty，启动会话并调用 resize 与 pty.kill()",
+      "cwd": "G:\\Project\\ai\\harness-desktop\\.worktrees\\multirun-codex-terminal-implementation-20260724\\apps\\desktop\\out\\Harness Desktop-win32-x64",
+      "exit_code": 1,
+      "result": "原生模块可以启动，但系统 ConPTY 的 console-list 辅助进程报 AttachConsole failed；失败未隐藏，G7 保持 NOT_RUN。"
+    },
+    {
+      "name": "打包宿主 ConPTY DLL 对照验证",
+      "command": "使用 useConptyDll=true 运行两次包内 PowerShell PTY 会话并写入一次性 JSON 结果",
+      "cwd": "G:\\Project\\ai\\harness-desktop\\.worktrees\\multirun-codex-terminal-implementation-20260724\\apps\\desktop\\out\\Harness Desktop-win32-x64",
+      "exit_code": 0,
+      "result": "一次性 JSON 为 PASS；覆盖两次启动、读写、resize、Ctrl+C、kill 与 restart。"
+    },
+    {
+      "name": "Windows PTY DLL 生产修复与 G3-G5 复验",
+      "command": "Desktop TDD 红绿；pnpm.cmd typecheck；Renderer build；Runtime compileall；pnpm.cmd test；绑定专用 worktree PYTHONPATH 后完整 pytest；使用系统 Chrome 运行 Playwright",
+      "cwd": "G:\\Project\\ai\\harness-desktop\\.worktrees\\multirun-codex-terminal-implementation-20260724",
+      "exit_code": 0,
+      "result": "新增 Windows useConptyDll 生产选项；类型检查和 1786 模块构建通过；53 项 TypeScript、242 项 Runtime 与 4 项 Playwright 通过，1 项符号链接场景按条件跳过。首次 Python editable install 路径错误和 Playwright 自带浏览器缺失均保留在阶段产物。"
+    },
+    {
+      "name": "最终 package 正常启动与 ASAR Main 解析失败",
+      "command": "隐藏启动 Harness Desktop.exe 并采样包内 Runtime；随后从 resources/app.asar/.vite/build/main.js 创建 ASAR-aware require 并解析 node-pty",
+      "cwd": "G:\\Project\\ai\\harness-desktop\\.worktrees\\multirun-codex-terminal-implementation-20260724\\apps\\desktop\\out\\Harness Desktop-win32-x64",
+      "exit_code": 1,
+      "result": "Electron 主进程存活但 Runtime 从未出现；require.resolve('node-pty') 明确返回 Cannot find module，证明 package 根 node_modules 超出 ASAR Main 解析边界。该 Squirrel 资产禁止发布。"
+    },
+    {
+      "name": "ASAR Main 原生依赖 staging 修复与 G3-G5 复验",
+      "command": "Forge afterCopy 复制解析到的 node-pty；Desktop TDD 红绿；全仓 typecheck、Renderer build、Runtime compileall、54 项 TypeScript、242 项 Runtime 与 4 项 Playwright",
+      "cwd": "G:\\Project\\ai\\harness-desktop\\.worktrees\\multirun-codex-terminal-implementation-20260724",
+      "exit_code": 0,
+      "result": "staging copy 配置测试先红后绿；G3-G5 全部通过，Runtime 1 项主机符号链接场景按条件跳过。等待最终 package 证明 ASAR Main 解析、正常 Runtime 启动和 PTY 冒烟。"
+    },
+    {
+      "name": "staging package 原生目录未解包",
+      "command": "离线 Forge make 后检查 resources/app.asar、app.asar.unpacked 与 node-pty 原生文件位置",
+      "cwd": "G:\\Project\\ai\\harness-desktop\\.worktrees\\multirun-codex-terminal-implementation-20260724\\apps\\desktop",
+      "exit_code": 1,
+      "result": "afterCopy 已使 ASAR 包含 339 个条目和 node-pty 全包，但 app.asar.unpacked 不存在；证明无效 asarUnpack 字段被忽略，原生文件仍不可发布。"
+    },
+    {
+      "name": "Packager 7 unpackDir 修复与 G3-G5 复验",
+      "command": "将 asarUnpack 替换为 asar.unpackDir；Desktop TDD 红绿；全仓 typecheck、Renderer build、Runtime compileall、54 项 TypeScript、242 项 Runtime 与 4 项 Playwright",
+      "cwd": "G:\\Project\\ai\\harness-desktop\\.worktrees\\multirun-codex-terminal-implementation-20260724",
+      "exit_code": 0,
+      "result": "配置测试明确禁止无效字段并通过；G3-G5 全部通过，Runtime 1 项主机符号链接场景按条件跳过。最终包仍需实际检查 app.asar.unpacked。"
+    },
+    {
+      "name": "最终 Windows x64 离线 Forge 与 Squirrel 构建",
+      "command": "设置已审计 HARNESS_ELECTRON_ZIP_DIR 后运行 pnpm.cmd exec electron-forge make --arch=x64 --out-dir=../../out",
+      "cwd": "G:\\Project\\ai\\harness-desktop\\.worktrees\\multirun-codex-terminal-implementation-20260724\\apps\\desktop",
+      "exit_code": 0,
+      "result": "62.1 秒完成 Main、Preload、Renderer、Electron package 与 Squirrel；生成最终 Setup 144427008 字节、NUPKG 143775192 字节和 RELEASES 86 字节。"
+    },
+    {
+      "name": "最终 package 接口测试",
+      "command": "检查 app.asar.unpacked；从 ASAR Main 解析 node-pty；正常启动应用与 Runtime；Runtime health；ASAR PTY 两会话；真实 Codex 发现；系统 Chrome Playwright",
+      "cwd": "G:\\Project\\ai\\harness-desktop\\.worktrees\\multirun-codex-terminal-implementation-20260724",
+      "exit_code": 0,
+      "result": "ASAR 解析、4 个 Electron 与 2 个 Runtime 进程、healthy health、PTY 生命周期、ANSI/中文/粘贴、真实 Codex TUI 3257 字节 ANSI 输出与 Ctrl+C、Hermes codex-cli 0.145.0 和 4 项 UI 场景全部通过。"
+    }
+  ],
+  "gates": {
+    "G1_REQUIREMENTS": "PASS",
+    "G2_DESIGN": "PASS",
+    "G3_COMPILE": "PASS",
+    "G4_UNIT_TEST": "PASS",
+    "G5_ATDD": "PASS",
+    "G6_EVIDENCE": "PASS",
+    "G7_PRERELEASE": "PASS",
+    "G8_ACCEPTANCE": "PASS"
+  },
+  "artifacts": [
+    "00-intake.md",
+    "00-context-pack.md",
+    "01-requirement-review.md",
+    "02-requirement-confirmation.md",
+    "03-solution-design.md",
+    "04-solution-confirmation.md",
+    "05-pre-mortem.md",
+    "06-implementation-plan.md",
+    "07-acceptance-confirmation.md",
+    "08-change-request.md",
+    "09-branch.md",
+    "10-worktree.md",
+    "10-coding-design.md",
+    "11-development.md",
+    "12-compile.md",
+    "13-unit-test.md",
+    "14-atdd.md",
+    "15-evidence.json"
+  ],
+  "waivers": [
+    {
+      "scope": "AC-20 干净 Windows VM 安装、升级与卸载",
+      "reason": "当前执行环境只有本机 Windows 11 x64，没有可重置的干净 Windows VM；已完成最终 package 正常启动、Runtime health、原生 PTY 与 Squirrel 资产检查。",
+      "owner": "项目发布负责人",
+      "time": "2026-07-25T00:40:00+08:00"
+    },
+    {
+      "scope": "Windows 代码签名",
+      "reason": "当前发布环境未提供代码签名证书或签名服务；最终安装包保持未签名并明确记录 SmartScreen 风险。",
+      "owner": "项目发布负责人",
+      "time": "2026-07-25T00:40:00+08:00"
+    }
+  ],
+  "residual_risks": [
+    "最终 package 仅在本机 Windows 11 x64 验证，未覆盖 Windows ARM64 或其他 Windows 构建版本。",
+    "真实 Codex 已验证当前 Hermes vendor 0.145.0；其他安装布局由自动测试覆盖，但未在真实主机逐一安装验证。",
+    "干净 Windows VM 的安装、升级、卸载和多 Run 交互依赖当前可用基础设施，必须在后续节点明确通过、豁免或阻断。",
+    "尚未确认发布环境是否提供代码签名证书；未签名安装包可能触发 Windows SmartScreen 提示。",
+    "Renderer 主 JavaScript chunk 约 696 kB，属于性能优化风险，不阻断本期功能。"
+  ]
+}

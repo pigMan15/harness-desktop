@@ -5,6 +5,8 @@ Import rejects Zip Slip, symlinks, and oversized files.
 """
 
 import io
+import hashlib
+import json
 import zipfile
 from pathlib import Path
 from typing import Optional
@@ -23,17 +25,25 @@ def export_workflow_zip(
     Returns the ZIP file as bytes.
     """
     buf = io.BytesIO()
+    files: dict[str, bytes] = {"workflow.yaml": workflow_yaml.encode("utf-8")}
+    if agent_files:
+        for name, content in agent_files.items():
+            safe_name = f"agents/{Path(name).name}"
+            if safe_name.endswith(".md"):
+                files[safe_name] = content.encode("utf-8")
+    if gate_yaml:
+        files["gates.yaml"] = gate_yaml.encode("utf-8")
+    manifest = {
+        "schema_version": "1.0",
+        "files": {
+            name: hashlib.sha256(content).hexdigest()
+            for name, content in sorted(files.items())
+        },
+    }
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
-        zf.writestr("workflow.yaml", workflow_yaml)
-        if agent_files:
-            for name, content in agent_files.items():
-                # Sanitize: only allow .md files in agents/ subdirectory
-                safe_name = f"agents/{Path(name).name}"
-                if not safe_name.endswith(".md"):
-                    continue
-                zf.writestr(safe_name, content)
-        if gate_yaml:
-            zf.writestr("gates.yaml", gate_yaml)
+        for name, content in files.items():
+            zf.writestr(name, content)
+        zf.writestr("manifest.json", json.dumps(manifest, sort_keys=True, indent=2))
     return buf.getvalue()
 
 
@@ -51,7 +61,13 @@ def import_workflow_zip(zip_data: bytes) -> dict:
     if len(zip_data) > MAX_TOTAL_SIZE:
         raise ValueError(f"ZIP file too large: {len(zip_data)} bytes (max {MAX_TOTAL_SIZE})")
 
-    result: dict = {"workflow_yaml": "", "agent_files": {}, "gate_yaml": None}
+    result: dict = {
+        "workflow_yaml": "",
+        "agent_files": {},
+        "gate_yaml": None,
+        "manifest": None,
+    }
+    extracted: dict[str, bytes] = {}
 
     with zipfile.ZipFile(io.BytesIO(zip_data), "r") as zf:
         for info in zf.infolist():
@@ -75,7 +91,10 @@ def import_workflow_zip(zip_data: bytes) -> dict:
             if info.file_size > MAX_FILE_SIZE:
                 raise ValueError(f"File too large: {name!r} ({info.file_size} bytes)")
 
-            content = zf.read(name).decode("utf-8")
+            raw = zf.read(name)
+            content = raw.decode("utf-8")
+            if name != "manifest.json":
+                extracted[name] = raw
 
             if name == "workflow.yaml":
                 result["workflow_yaml"] = content
@@ -84,8 +103,20 @@ def import_workflow_zip(zip_data: bytes) -> dict:
             elif name.startswith("agents/") and name.endswith(".md"):
                 agent_name = Path(name).name
                 result["agent_files"][agent_name] = content
+            elif name == "manifest.json":
+                result["manifest"] = json.loads(content)
 
     if not result["workflow_yaml"]:
         raise ValueError("ZIP file must contain workflow.yaml")
+
+    manifest = result["manifest"]
+    if manifest is not None:
+        expected = manifest.get("files", {})
+        actual = {
+            name: hashlib.sha256(content).hexdigest()
+            for name, content in extracted.items()
+        }
+        if expected != actual:
+            raise ValueError("Workflow ZIP manifest hash mismatch")
 
     return result
