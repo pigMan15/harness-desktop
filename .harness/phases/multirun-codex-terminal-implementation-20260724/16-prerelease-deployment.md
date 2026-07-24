@@ -170,3 +170,15 @@
 - 真实 Codex：WindowsApps 两个候选均 `spawn EPERM`，发现流程继续并选择 Hermes vendor `codex.exe`，版本 `codex-cli 0.145.0`。
 - 回滚：撤下三个最终资产并回退本分支提交；不删除用户项目数据或 Runtime 数据库。
 - 部署结果：PASS；路由 tester 执行 `INTERFACE_TEST`，由 verifier 在部署与接口证据均存在后判定 G7。
+
+## 0.2.0 发布重建
+
+- 用户要求：保持已完成 Harness 路由与 G3-G8 PASS，不重复测试；将发布版本改为 `0.2.0` 并直接提交。
+- Source commit：`ed89257`（`chore: prepare desktop 0.2.0 release`）。
+- 命令：使用 SHA-256 `E91986DD243D55947E6C5D3FAD21795562EC21FA0EEC5E95F7E28C830571467F` 的已审计 Electron 31.7.7 ZIP 运行 Forge make。
+- 结果：退出码 0，耗时 59.6 秒；Main 21.25 kB、Preload 3.96 kB、Renderer 1786 模块、Electron x64 package 与 Squirrel distributable 全部成功。
+- Setup：144426496 字节，SHA-256 `B83E2277EBB420ED842FFB8F75F2A600341E1E0A4C670C0CCB239A85B2EA3777`。
+- NUPKG：143775210 字节，SHA-256 `651A2825838A2350E07EA3B0F9A0DD99C7501E38A4FB69394BC78EA4C0443D97`。
+- RELEASES：86 字节，SHA-256 `9DE5DAA299B29FF138BB3CB4860D45DE9197F91C2457866F51F52B76347C5C3C`。
+- 校验和资产：`apps/desktop/out/make/squirrel.windows/x64/SHA256SUMS.txt`。
+- 补充测试：按用户明确指令未执行；此前 G3-G8 验证记录保持不变。

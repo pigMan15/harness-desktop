@@ -32,3 +32,9 @@
 - 是否将“pnpm hoisted native dependency 的 staging + `asar.unpackDir` + ASAR Main smoke”提升为 Desktop 发布硬规则。
 - 是否把 `PYTHONPATH` 专用 worktree 绑定加入 Harness Python 构建规则。
 - 草稿仅生成在当前 phase_dir，未自动写入长期知识库。
+
+## 发布交付附注
+
+- 用户最终指定版本 `0.2.0`，并要求保留已完成 Harness 路由和 G3-G8 PASS，不重复测试。
+- `0.2.0` Squirrel 资产已从提交 `ed89257` 成功重建；Setup/NUPKG/RELEASES 哈希记录在 `16-prerelease-deployment.md` 和 `SHA256SUMS.txt`。
+- 长期知识候选不因版本号变化而改变；本附注仅用于本次发布可追溯性。
