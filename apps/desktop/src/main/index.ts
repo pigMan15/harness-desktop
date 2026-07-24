@@ -9,7 +9,7 @@
 import { app, BrowserWindow, dialog, ipcMain } from 'electron'
 import { readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
-import { RuntimeSupervisor } from './runtime-supervisor'
+import { DESKTOP_VERSION, RuntimeSupervisor } from './runtime-supervisor'
 import { createProjectImportHandler } from './project-import'
 import { CodexSettingsStore, discoverCodex, knownHermesCandidates, whereCodex } from './codex-discovery'
 import { TerminalManager } from './terminal-manager'
@@ -74,7 +74,7 @@ app.whenReady().then(() => {
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${supervisor.token}`,
-          'X-Harness-Desktop-Version': '0.1.0',
+          'X-Harness-Desktop-Version': DESKTOP_VERSION,
         },
         body: JSON.stringify({ jsonrpc: '2.0', method, params, id: `req-${Date.now()}` }),
       })
@@ -132,7 +132,7 @@ app.whenReady().then(() => {
     if (!supervisor || !supervisor.port) return { status: 'starting' }
     try {
       const resp = await fetch(`http://127.0.0.1:${supervisor.port}/health`, {
-        headers: { Authorization: `Bearer ${supervisor.token}`, 'X-Harness-Desktop-Version': '0.1.0' },
+        headers: { Authorization: `Bearer ${supervisor.token}`, 'X-Harness-Desktop-Version': DESKTOP_VERSION },
       })
       if (resp.ok) return await resp.json()
       return { status: 'unavailable', error: `HTTP ${resp.status}` }

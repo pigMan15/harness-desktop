@@ -11,6 +11,16 @@ describe('Desktop packaging configuration', () => {
     expect(packageJson.devDependencies['ts-node']).toBe('10.9.2')
   })
 
+  it('keeps package, Forge, and Runtime client versions aligned', () => {
+    const packageJson = JSON.parse(readFileSync(path.join(desktopRoot, 'package.json'), 'utf8'))
+    const forge = readFileSync(path.join(desktopRoot, 'forge.config.ts'), 'utf8')
+    const supervisor = readFileSync(path.join(desktopRoot, 'src', 'main', 'runtime-supervisor.ts'), 'utf8')
+
+    expect(packageJson.version).toBe('0.2.0')
+    expect(forge).toContain(`appVersion: '${packageJson.version}'`)
+    expect(supervisor).toContain(`DESKTOP_VERSION = '${packageJson.version}'`)
+  })
+
   it('unpacks node-pty and externalizes all Node builtin spellings', () => {
     const forge = readFileSync(path.join(desktopRoot, 'forge.config.ts'), 'utf8')
     const mainVite = readFileSync(path.join(desktopRoot, 'vite.main.config.ts'), 'utf8')

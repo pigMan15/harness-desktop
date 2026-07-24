@@ -1,6 +1,6 @@
 # Changelog
 
-## v0.1.0 (2026-07-24)
+## v0.2.0 (2026-07-25)
 
 - Added authoritative multi-Run selection, archive, execution context, revisions, and mandatory isolated Git worktrees.
 - Added native Codex and shell terminals with node-pty/ConPTY, Codex discovery/settings, per-Run ownership, concurrency limits, restart, resize, and redacted durable summaries.

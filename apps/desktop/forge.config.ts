@@ -24,7 +24,7 @@ const config: ForgeConfig = {
     // 仅在发布环境显式指定时复用已审计 ZIP；Packager 仍会校验目录和精确版本文件名。
     ...(electronZipDir ? { electronZipDir } : {}),
     name: 'Harness Desktop',
-    appVersion: '0.1.0',
+    appVersion: '0.2.0',
     extraResource: [
       'resources/harness-runtime.exe',
     ],

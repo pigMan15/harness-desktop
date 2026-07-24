@@ -10,3 +10,10 @@
 - Release target: `origin` (`git@github.com:pigMan15/harness-desktop.git`), with binary packages preferably uploaded as GitHub release assets.
 - Rollback: revert the feature commit and withdraw release assets; do not rewrite authoritative run snapshots or delete user worktrees.
 - Status: approved by the user's explicit implementation and publication request.
+
+## Delivery update (2026-07-25)
+
+- The user explicitly selected release version `0.2.0` and requested that the completed Harness route and G3-G8 PASS decisions remain intact.
+- Package, Forge, Runtime client metadata, changelog, and packaging docs must report `0.2.0`; the rebuilt assets receive supplemental release verification before merge and publication.
+- The user explicitly declined another test run for this metadata-only adjustment; the interrupted supplemental pnpm processes were stopped, and the previously recorded G3-G8 evidence remains the acceptance basis.
+- Delivery uses a fast-forward update of `main` from the isolated branch so the dirty main worktree is not checked out or overwritten.

@@ -93,8 +93,8 @@
     "retry_counts":  {
 
                      },
-    "last_updated":  "2026-07-25T00:45:00+08:00",
-    "notes":  "G8 passed: AC-01 through AC-20 are mapped with two explicit infrastructure waivers and remaining risks. Routed to KNOWLEDGE_PROMOTION; remote GitHub delivery is still required before DONE.",
+    "last_updated":  "2026-07-25T07:38:00+08:00",
+    "notes":  "User required version 0.2.0, retained KNOWLEDGE_PROMOTION and G3-G8 PASS, and explicitly declined a supplemental test run. The interrupted pnpm processes were stopped; package rebuild and release hashes remain before remote delivery.",
     "branch_name":  "codex/multirun-codex-terminal",
     "worktree_path":  "G:\\Project\\ai\\harness-desktop\\.worktrees\\multirun-codex-terminal-implementation-20260724",
     "worktree_status":  "active"

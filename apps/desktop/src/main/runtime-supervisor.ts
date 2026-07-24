@@ -14,6 +14,8 @@ import { EventEmitter } from 'node:events'
 import fs from 'node:fs'
 import path from 'node:path'
 
+export const DESKTOP_VERSION = '0.2.0'
+
 export interface RuntimeSupervisorEvents {
   status: (healthy: boolean) => void
   error: (err: Error) => void
@@ -105,7 +107,7 @@ export class RuntimeSupervisor extends EventEmitter {
       const resp = await fetch(`http://127.0.0.1:${this.port}/health`, {
         headers: {
           Authorization: `Bearer ${this.token}`,
-          'X-Harness-Desktop-Version': '0.1.0',
+          'X-Harness-Desktop-Version': DESKTOP_VERSION,
         },
       })
       if (resp.ok) {
