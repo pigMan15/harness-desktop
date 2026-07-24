@@ -38,3 +38,13 @@
 - 用户最终指定版本 `0.2.0`，并要求保留已完成 Harness 路由和 G3-G8 PASS，不重复测试。
 - `0.2.0` Squirrel 资产已从提交 `ed89257` 成功重建；Setup/NUPKG/RELEASES 哈希记录在 `16-prerelease-deployment.md` 和 `SHA256SUMS.txt`。
 - 长期知识候选不因版本号变化而改变；本附注仅用于本次发布可追溯性。
+
+## 远端交付完成
+
+- 远端仓库：`git@github.com:pigMan15/harness-desktop.git`。
+- `main` 与 `codex/multirun-codex-terminal`：`a962545a18fa9cd1742729c12e9ec963eb612fd6`。
+- Tag：`desktop-v0.2.0`（annotated tag object `2e1476b3c87909dd16ffbafb0dd313fae0ba9313`）。
+- Release：`https://github.com/pigMan15/harness-desktop/releases/tag/desktop-v0.2.0`，正式发布，非 draft/prerelease。
+- 远端资产：Setup 144426496 字节、NUPKG 143775210 字节、RELEASES 86 字节、SHA256SUMS 272 字节；四项状态均为 `uploaded`。
+- GitHub 服务端 digest 与本地 SHA-256 完全一致；Setup 文件名由 GitHub 规范化为 `Harness.Desktop-0.2.0.Setup.exe`。
+- 用户在得知公开上传会披露编译后工作区代码和内置 Runtime 后明确授权上传。
