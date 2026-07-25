@@ -67,6 +67,27 @@ function TerminalContent(): React.ReactElement {
     void refreshTerminals()
   }, [refreshTerminals])
 
+  const writeTerminalText = useCallback(async (text: string): Promise<void> => {
+    if (!text || !session?.sessionId || !window.harness) return
+    try {
+      await window.harness.writeTerminal(session.sessionId, text)
+    } catch (cause) {
+      if (isTerminalSessionNotFound(cause)) {
+        markTerminalSessionStale(session.sessionId)
+        return
+      }
+      setMessage(cause instanceof Error ? cause.message : 'Terminal paste failed')
+    }
+  }, [markTerminalSessionStale, session?.sessionId])
+
+  const pasteClipboardText = useCallback(async (): Promise<void> => {
+    try {
+      await writeTerminalText(await navigator.clipboard.readText())
+    } catch (cause) {
+      setMessage(cause instanceof Error ? cause.message : 'Clipboard text paste failed')
+    }
+  }, [writeTerminalText])
+
   const loadContext = useCallback(async () => {
     if (!window.harness || !selectedRun) { setContext(undefined); return }
     let result = await window.harness.getRunExecutionContext(selectedProjectId, selectedRun.run_id, selectedRun.revision)
@@ -91,6 +112,15 @@ function TerminalContent(): React.ReactElement {
     const searchAddon = new SearchAddon()
     terminal.loadAddon(fitAddon)
     terminal.loadAddon(searchAddon)
+    terminal.attachCustomKeyEventHandler((event) => {
+      if (event.type !== 'keydown') return true
+      const key = event.key.toLowerCase()
+      const pasteShortcut = (key === 'v' && (event.ctrlKey || event.metaKey)) || (event.key === 'Insert' && event.shiftKey)
+      if (!pasteShortcut) return true
+      event.preventDefault()
+      void pasteClipboardText()
+      return false
+    })
     terminal.open(hostRef.current)
     terminalRef.current = terminal
     fitRef.current = fitAddon
@@ -138,6 +168,13 @@ function TerminalContent(): React.ReactElement {
         })
       }
     })
+    const handlePaste = (event: ClipboardEvent) => {
+      const text = event.clipboardData?.getData('text/plain') || ''
+      if (!text) return
+      event.preventDefault()
+      void writeTerminalText(text)
+    }
+    hostRef.current.addEventListener('paste', handlePaste)
     if (session?.sessionId && window.harness) {
       replayingScrollback = true
       void window.harness.getTerminalScrollback(session.sessionId).then((replay) => {
@@ -179,8 +216,8 @@ function TerminalContent(): React.ReactElement {
       })
     })
     observer.observe(hostRef.current)
-    return () => { disposed = true; observer.disconnect(); cancelAnimationFrame(resizeFrame); input.dispose(); terminal.dispose(); terminalRef.current = undefined }
-  }, [session?.sessionId])
+    return () => { disposed = true; observer.disconnect(); hostRef.current?.removeEventListener('paste', handlePaste); cancelAnimationFrame(resizeFrame); input.dispose(); terminal.dispose(); terminalRef.current = undefined }
+  }, [markTerminalSessionStale, pasteClipboardText, session?.sessionId, writeTerminalText])
 
   useEffect(() => {
     if (!window.harness) return
@@ -264,7 +301,7 @@ function TerminalContent(): React.ReactElement {
     <div className="terminal-tools">
       <div className="terminal-search"><Search size={14} /><input value={searchText} onChange={(event) => setSearchText(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') searchRef.current?.findNext(searchText) }} placeholder="Find" /></div>
       <button className="button icon-button" title="Copy selection" onClick={() => void navigator.clipboard.writeText(terminalRef.current?.getSelection() || '')}><Copy size={15} /></button>
-      <button className="button icon-button" title="Paste" onClick={() => void navigator.clipboard.readText().then((text) => session && window.harness?.writeTerminal(session.sessionId, text))}><Clipboard size={15} /></button>
+      <button className="button icon-button" title="Paste" onClick={() => void pasteClipboardText()}><Clipboard size={15} /></button>
     </div>
     <div className="terminal-host" ref={hostRef} />
     {selectedRun && context && <div className="node-controls">

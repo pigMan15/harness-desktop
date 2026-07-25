@@ -29,4 +29,12 @@ describe('TerminalPage source contract', () => {
     expect(source).toContain('lastTerminalSize.cols === terminal.cols')
     expect(source).toContain('lastTerminalSize.rows === terminal.rows')
   })
+
+  it('routes paste shortcuts through clipboard text instead of PTY control characters', () => {
+    expect(source).toContain('attachCustomKeyEventHandler')
+    expect(source).toContain("key === 'v' && (event.ctrlKey || event.metaKey)")
+    expect(source).toContain("event.key === 'Insert' && event.shiftKey")
+    expect(source).toContain("getData('text/plain')")
+    expect(source).toContain('pasteClipboardText')
+  })
 })
