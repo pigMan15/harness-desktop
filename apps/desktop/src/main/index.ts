@@ -28,6 +28,7 @@ function createWindow(): void {
   mainWindow = new BrowserWindow({
     width: 1280,
     height: 800,
+    backgroundColor: '#0b16d8',
     webPreferences: {
       // Architecture §14: security model
       contextIsolation: true,

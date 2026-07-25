@@ -12,6 +12,7 @@ import { KnowledgePage } from '../features/knowledge/KnowledgePage'
 import { RecoveryPage } from '../features/recovery/RecoveryPage'
 import { TerminalPage } from '../features/terminal/TerminalPage'
 import { CodexSettingsPage } from '../features/settings/CodexSettingsPage'
+import { LaunchSplash } from '../features/layout/LaunchSplash'
 
 function WorkspaceHeader(): React.ReactElement {
   const { status } = useRuntime()
@@ -55,10 +56,13 @@ function WorkspaceRoutes(): React.ReactElement {
 
 export function App(): React.ReactElement {
   return (
-    <RuntimeProvider>
-      <WorkspaceProvider>
-        <HashRouter><WorkspaceRoutes /></HashRouter>
-      </WorkspaceProvider>
-    </RuntimeProvider>
+    <>
+      <RuntimeProvider>
+        <WorkspaceProvider>
+          <HashRouter><WorkspaceRoutes /></HashRouter>
+        </WorkspaceProvider>
+      </RuntimeProvider>
+      <LaunchSplash />
+    </>
   )
 }
