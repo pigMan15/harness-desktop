@@ -898,6 +898,7 @@ def _knowledge_repo_codex_active(project_id: str) -> dict:
                 "pid": server.pid,
                 "threadId": server.thread_id,
                 "turnId": server.turn_id,
+                "approvals": server.pending_approvals(),
             }
     return {"active": False}
 

@@ -28,6 +28,7 @@ class CodexAppServer:
         self._stderr_task: asyncio.Task | None = None
         self._pending: dict[int, asyncio.Future] = {}
         self._approval_methods: dict[int, str] = {}
+        self._pending_approvals: dict[int, dict[str, Any]] = {}
         self._events: list[dict[str, Any]] = []
         self._next_request_id = 1
         self._sequence = 0
@@ -117,6 +118,10 @@ class CodexAppServer:
         events, self._events = self._events, []
         return events
 
+    def pending_approvals(self) -> list[dict[str, Any]]:
+        """Return unresolved approval requests for renderer session recovery."""
+        return list(self._pending_approvals.values())
+
     async def respond(self, request_id: int, decision: str) -> None:
         """Respond to an app-server initiated approval request."""
         if request_id not in self._approval_methods:
@@ -131,6 +136,7 @@ class CodexAppServer:
             raise ValueError(f"CODEX_APPROVAL_DECISION_INVALID: {decision}")
         await self._response(request_id, {"decision": mapped})
         del self._approval_methods[request_id]
+        self._pending_approvals.pop(request_id, None)
 
     async def interrupt(self) -> None:
         """Interrupt the active turn while keeping protocol shutdown orderly."""
@@ -238,13 +244,14 @@ class CodexAppServer:
         category = categories.get(method, "external")
         # Server request 必须保留原始 id，用户响应后才能准确回写对应审批。
         self._approval_methods[request_id] = method
-        self._emit(
+        event = self._emit(
             "approval_required",
             requestId=request_id,
             category=category,
             message=params.get("reason") or f"Codex requests {category} approval",
             params=params,
         )
+        self._pending_approvals[request_id] = event
 
     def _handle_notification(self, method: str, params: dict) -> None:
         if method in {
@@ -267,6 +274,8 @@ class CodexAppServer:
             turn = params.get("turn") or {}
             status = turn.get("status", "completed")
             self._terminal_event_sent = True
+            self._approval_methods.clear()
+            self._pending_approvals.clear()
             if status == "failed":
                 self._emit("error", error=turn.get("error") or "Codex turn failed")
             else:
@@ -275,6 +284,8 @@ class CodexAppServer:
         if method == "error" and not params.get("willRetry", False):
             self._emit("error", error=params.get("error") or "Codex turn error")
 
-    def _emit(self, event_type: str, **data: Any) -> None:
+    def _emit(self, event_type: str, **data: Any) -> dict[str, Any]:
         self._sequence += 1
-        self._events.append({"type": event_type, "sequence": self._sequence, **data})
+        event = {"type": event_type, "sequence": self._sequence, **data}
+        self._events.append(event)
+        return event

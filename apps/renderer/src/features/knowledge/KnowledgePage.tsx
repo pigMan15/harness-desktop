@@ -45,7 +45,7 @@ function KnowledgeContent(): React.ReactElement {
   const [codexLogs, setCodexLogs] = useState<KnowledgeLogEntry[]>([])
   const [codexRunning, setCodexRunning] = useState(false)
   const [codexSessionId, setCodexSessionId] = useState('')
-  const [pendingApproval, setPendingApproval] = useState<KnowledgeLogEntry>()
+  const [pendingApprovals, setPendingApprovals] = useState<KnowledgeLogEntry[]>([])
   const [confirmDangerous, setConfirmDangerous] = useState(false)
   const [dirtyBlocked, setDirtyBlocked] = useState(false)
   const [codexFeedback, setCodexFeedback] = useState('')
@@ -53,6 +53,7 @@ function KnowledgeContent(): React.ReactElement {
   const [msgKind, setMsgKind] = useState<'info' | 'success' | 'error'>('info')
   const timer = useRef<ReturnType<typeof setInterval>>()
   const codexLogRef = useRef<HTMLPreElement>(null)
+  const pendingApproval = pendingApprovals[0]
 
   function showMsg(message: string, kind: 'info' | 'success' | 'error' = 'info') {
     setMsg(message)
@@ -86,6 +87,7 @@ function KnowledgeContent(): React.ReactElement {
         const id = String(r.sessionId)
         setCodexSessionId(id)
         setCodexRunning(true)
+        setPendingApprovals(Array.isArray(r.approvals) ? r.approvals : [])
         showMsg('Resumed active Codex synthesis session.', 'info')
         beginCodexPolling(id)
       }
@@ -169,7 +171,7 @@ function KnowledgeContent(): React.ReactElement {
   async function runCodexSynthesis(allowDirty = false) {
     if (!window.harness) return
     setCodexLogs([])
-    setPendingApproval(undefined)
+    setPendingApprovals([])
     setPreview(null)
     setMsg('')
     setDirtyBlocked(false)
@@ -198,8 +200,13 @@ function KnowledgeContent(): React.ReactElement {
         const keys = new Set(current.map(entry => `${entry.type}:${entry.sequence}`))
         return [...current, ...events.filter(entry => !keys.has(`${entry.type}:${entry.sequence}`))]
       })
-      const approval = events.find(entry => entry.type === 'approval_required')
-      if (approval) setPendingApproval(approval)
+      const approvals = events.filter(entry => entry.type === 'approval_required' && entry.requestId !== undefined)
+      if (approvals.length > 0) {
+        setPendingApprovals(current => {
+          const requestIds = new Set(current.map(entry => entry.requestId))
+          return [...current, ...approvals.filter(entry => !requestIds.has(entry.requestId))]
+        })
+      }
       const previewEvent = events.find(entry => entry.type === 'preview')
       if (previewEvent) {
         setPreview(previewEvent)
@@ -207,6 +214,7 @@ function KnowledgeContent(): React.ReactElement {
       }
       if (events.some(entry => entry.type === 'exited' || entry.type === 'error')) {
         setCodexRunning(false)
+        setPendingApprovals([])
         if (timer.current) clearInterval(timer.current)
       }
     } catch (e: any) {
@@ -223,8 +231,9 @@ function KnowledgeContent(): React.ReactElement {
       return
     }
     try {
-      await window.harness.respondKnowledgeCodexSynthesis(selectedProjectId, codexSessionId, { requestId: pendingApproval.requestId, decision })
-      setPendingApproval(undefined)
+      const resolvedRequestId = pendingApproval.requestId
+      await window.harness.respondKnowledgeCodexSynthesis(selectedProjectId, codexSessionId, { requestId: resolvedRequestId, decision })
+      setPendingApprovals(current => current.filter(entry => entry.requestId !== resolvedRequestId))
       setConfirmDangerous(false)
     } catch (e: any) { showMsg(e.message, 'error') }
   }
@@ -233,6 +242,7 @@ function KnowledgeContent(): React.ReactElement {
     if (!window.harness || !codexSessionId) return
     if (timer.current) clearInterval(timer.current)
     setCodexRunning(false)
+    setPendingApprovals([])
     try { await window.harness.cancelKnowledgeCodexSynthesis(selectedProjectId, codexSessionId) }
     catch (e: any) { showMsg(e.message, 'error') }
   }
@@ -241,7 +251,7 @@ function KnowledgeContent(): React.ReactElement {
     const feedback = codexFeedback.trim()
     if (!window.harness || !codexSessionId || !feedback) return
     setCodexRunning(true)
-    setPendingApproval(undefined)
+    setPendingApprovals([])
     setMsg('')
     try {
       const r = await window.harness.sendKnowledgeCodexFeedback(selectedProjectId, codexSessionId, feedback)
@@ -415,7 +425,7 @@ function KnowledgeContent(): React.ReactElement {
               {codexSessionId && <code>{codexSessionId}</code>}
             </div>
             {pendingApproval && <div className={`notice ${confirmDangerous ? 'error' : ''}`}>
-              <strong>{confirmDangerous ? 'SECOND CONFIRMATION REQUIRED' : `${pendingApproval.category || 'external'} approval`}</strong>
+              <strong>{confirmDangerous ? 'SECOND CONFIRMATION REQUIRED' : `${pendingApproval.category || 'external'} approval · 1/${pendingApprovals.length}`}</strong>
               <div style={{ margin: '6px 0' }}>{pendingApproval.message}</div>
               <div className="actions">
                 <button className="button primary" onClick={() => void respondCodex('allow_once')}>{confirmDangerous ? 'Confirm allow' : 'Allow once'}</button>

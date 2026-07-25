@@ -102,9 +102,19 @@ def test_app_server_protocol_approval_and_interrupt(tmp_path):
         assert [event["type"] for event in events] == ["output", "approval_required"]
         assert events[1]["requestId"] == 91
         assert events[1]["category"] == "command"
+        server._handle_server_request(
+            92,
+            "item/commandExecution/requestApproval",
+            {"reason": "inspect repository rules"},
+        )
+        assert [approval["requestId"] for approval in server.pending_approvals()] == [91, 92]
 
         await server.respond(91, "allow_once")
         assert process.stdin.messages[-1] == {"id": 91, "result": {"decision": "accept"}}
+        assert [approval["requestId"] for approval in server.pending_approvals()] == [92]
+        await server.respond(92, "deny")
+        assert process.stdin.messages[-1] == {"id": 92, "result": {"decision": "decline"}}
+        assert server.pending_approvals() == []
 
         await server.interrupt()
         assert process.stdin.messages[-1]["method"] == "turn/interrupt"
