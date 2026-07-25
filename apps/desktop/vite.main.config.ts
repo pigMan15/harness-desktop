@@ -30,7 +30,7 @@ export default defineConfig((environment) => {
     define: {
       MAIN_WINDOW_VITE_DEV_SERVER_URL: environment.command === 'serve'
         ? JSON.stringify(process.env.MAIN_WINDOW_VITE_DEV_SERVER_URL)
-        : 'undefined',
+        : undefined,
       MAIN_WINDOW_VITE_NAME: JSON.stringify('main_window'),
     },
     resolve: {

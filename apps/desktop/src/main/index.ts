@@ -38,8 +38,11 @@ function createWindow(): void {
   })
 
   // Load the renderer
-  if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
-    mainWindow.loadURL(MAIN_WINDOW_VITE_DEV_SERVER_URL)
+  const rendererDevServerUrl = typeof MAIN_WINDOW_VITE_DEV_SERVER_URL === 'string' && MAIN_WINDOW_VITE_DEV_SERVER_URL.length > 0
+    ? MAIN_WINDOW_VITE_DEV_SERVER_URL
+    : process.env.MAIN_WINDOW_VITE_DEV_SERVER_URL
+  if (rendererDevServerUrl) {
+    mainWindow.loadURL(rendererDevServerUrl)
   } else {
     // Production: renderer is at ../renderer/main_window/index.html relative to build output
     const rendererPath = path.join(__dirname, '..', 'renderer', MAIN_WINDOW_VITE_NAME, 'index.html')

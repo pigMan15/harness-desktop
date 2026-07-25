@@ -11,7 +11,7 @@ class WorktreeUnavailable(RuntimeError):
 def _git(cwd: Path, *args: str, check: bool = True) -> subprocess.CompletedProcess[str]:
     try:
         return subprocess.run(
-            ["git", *args],
+            ["git", "-c", "core.longpaths=true", *args],
             cwd=cwd,
             check=check,
             capture_output=True,

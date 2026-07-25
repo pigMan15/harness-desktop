@@ -173,7 +173,7 @@ async def _dispatch(method: str, params: dict) -> Any:
     if method == "diagnostics.export":
         return _diagnostics_export(project_id, project_root)
     if method == "knowledge.list":
-        return _knowledge_list(params.get("status", "draft"))
+        return _knowledge_list(project_id, project_root, params.get("status", "draft"))
     if method == "knowledge.review":
         return _knowledge_review(params.get("candidateId", 0), params.get("decision", "accepted"))
     if method == "execution.probe":
@@ -769,9 +769,9 @@ def _diagnostics_export(project_id: str, project_root: Path) -> dict:
     return export_diagnostics(project_id, project_root)
 
 
-def _knowledge_list(status: str) -> list[dict]:
-    from ..knowledge.service import list_candidates
-    return list_candidates(status=status)
+def _knowledge_list(project_id: str, project_root: Path, status: str) -> list[dict]:
+    from ..knowledge.service import list_candidates_with_content
+    return list_candidates_with_content(project_id, project_root, status=status)
 
 
 def _knowledge_review(candidate_id: int, decision: str) -> dict:

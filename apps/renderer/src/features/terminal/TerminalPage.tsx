@@ -37,6 +37,10 @@ function runFromResult(result: Record<string, unknown>): RunSummary | undefined 
   }
 }
 
+function isTerminalSessionNotFound(cause: unknown): boolean {
+  return String(cause instanceof Error ? cause.message : cause).includes('TERMINAL_SESSION_NOT_FOUND')
+}
+
 function TerminalContent(): React.ReactElement {
   const { selectedProjectId, selectedRun, terminalSessionsById, refreshTerminals, updateActiveRun } = useWorkspace()
   const hostRef = useRef<HTMLDivElement>(null)
@@ -49,15 +53,26 @@ function TerminalContent(): React.ReactElement {
   const [searchText, setSearchText] = useState('')
   const [comment, setComment] = useState('')
   const [busy, setBusy] = useState(false)
+  const [staleSessionIds, setStaleSessionIds] = useState<Set<string>>(() => new Set())
 
   const matchingSession = useMemo(() => Object.values(terminalSessionsById)
     .filter((item) => item.projectId === selectedProjectId && item.runId === selectedRun?.run_id)
+    .filter((item) => !staleSessionIds.has(item.sessionId))
     .sort((a, b) => b.startedAt.localeCompare(a.startedAt))[0],
-  [selectedProjectId, selectedRun?.run_id, terminalSessionsById])
+  [selectedProjectId, selectedRun?.run_id, staleSessionIds, terminalSessionsById])
+
+  const markTerminalSessionStale = useCallback((sessionId: string) => {
+    setStaleSessionIds((current) => new Set([...current, sessionId]))
+    setSession((current) => current?.sessionId === sessionId ? undefined : current)
+    void refreshTerminals()
+  }, [refreshTerminals])
 
   const loadContext = useCallback(async () => {
     if (!window.harness || !selectedRun) { setContext(undefined); return }
-    const result = await window.harness.getRunExecutionContext(selectedProjectId, selectedRun.run_id, selectedRun.revision)
+    let result = await window.harness.getRunExecutionContext(selectedProjectId, selectedRun.run_id, selectedRun.revision)
+    if (result.error === 'REVISION_CONFLICT') {
+      result = await window.harness.getRunExecutionContext(selectedProjectId, selectedRun.run_id)
+    }
     if (result.error) { setMessage(String(result.error)); return }
     setContext(result as unknown as ExecutionContext)
   }, [selectedProjectId, selectedRun])
@@ -80,23 +95,91 @@ function TerminalContent(): React.ReactElement {
     terminalRef.current = terminal
     fitRef.current = fitAddon
     searchRef.current = searchAddon
-    fitAddon.fit()
-    if (session?.sessionId && window.harness) {
-      void window.harness.getTerminalScrollback(session.sessionId).then((replay) => { if (replay.data) terminal.write(replay.data) })
-    } else if (session?.summary) {
-      terminal.write(session.summary)
-    }
-    const input = terminal.onData((data) => { if (session?.sessionId) void window.harness?.writeTerminal(session.sessionId, data) })
     let resizeFrame = 0
+    let fitReadyAttempts = 0
+    let lastTerminalSize = { cols: 0, rows: 0 }
+    let replayingScrollback = false
+    let disposed = false
+    const fitTerminal = () => {
+      const bounds = hostRef.current?.getBoundingClientRect()
+      if (!bounds || bounds.width <= 0 || bounds.height <= 0) return false
+      const dimensions = (terminal as unknown as { _core?: { _renderService?: { dimensions?: { css?: { cell?: { width: number; height: number } } } } } })
+        ._core?._renderService?.dimensions
+      if (!dimensions?.css?.cell?.width || !dimensions.css.cell.height) return false
+      try {
+        fitAddon.fit()
+        return true
+      } catch (cause) {
+        setMessage(cause instanceof Error ? cause.message : 'Terminal fit failed')
+        return false
+      }
+    }
+    const scheduleInitialFit = () => {
+      resizeFrame = requestAnimationFrame(() => {
+        if (!fitTerminal() && fitReadyAttempts < 8) {
+          fitReadyAttempts += 1
+          scheduleInitialFit()
+        }
+      })
+    }
+    scheduleInitialFit()
+    const finishReplay = () => {
+      requestAnimationFrame(() => { replayingScrollback = false })
+    }
+    const input = terminal.onData((data) => {
+      if (replayingScrollback) return
+      if (session?.sessionId) {
+        void window.harness?.writeTerminal(session.sessionId, data).catch((cause) => {
+          if (isTerminalSessionNotFound(cause)) {
+            markTerminalSessionStale(session.sessionId)
+            return
+          }
+          setMessage(cause instanceof Error ? cause.message : 'Terminal write failed')
+        })
+      }
+    })
+    if (session?.sessionId && window.harness) {
+      replayingScrollback = true
+      void window.harness.getTerminalScrollback(session.sessionId).then((replay) => {
+        if (disposed) return
+        if (replay.missing) {
+          finishReplay()
+          markTerminalSessionStale(session.sessionId)
+          return
+        }
+        if (replay.data) terminal.write(replay.data, finishReplay)
+        else finishReplay()
+      }).catch((cause) => {
+        finishReplay()
+        if (isTerminalSessionNotFound(cause)) {
+          markTerminalSessionStale(session.sessionId)
+          return
+        }
+        setMessage(cause instanceof Error ? cause.message : 'Terminal scrollback failed')
+      })
+    } else if (session?.summary) {
+      replayingScrollback = true
+      terminal.write(session.summary, finishReplay)
+    }
     const observer = new ResizeObserver(() => {
       cancelAnimationFrame(resizeFrame)
       resizeFrame = requestAnimationFrame(() => {
-        fitAddon.fit()
-        if (session?.sessionId && window.harness) void window.harness.resizeTerminal(session.sessionId, terminal.cols, terminal.rows)
+        if (!fitTerminal()) return
+        if (!session?.sessionId || !window.harness) return
+        if (lastTerminalSize.cols === terminal.cols && lastTerminalSize.rows === terminal.rows) return
+        // xterm fit 会改写内部 DOM；只同步真实行列变化，避免 ResizeObserver 形成空闲反馈循环。
+        lastTerminalSize = { cols: terminal.cols, rows: terminal.rows }
+        void window.harness.resizeTerminal(session.sessionId, terminal.cols, terminal.rows).catch((cause) => {
+          if (isTerminalSessionNotFound(cause)) {
+            markTerminalSessionStale(session.sessionId)
+            return
+          }
+          setMessage(cause instanceof Error ? cause.message : 'Terminal resize failed')
+        })
       })
     })
     observer.observe(hostRef.current)
-    return () => { observer.disconnect(); cancelAnimationFrame(resizeFrame); input.dispose(); terminal.dispose(); terminalRef.current = undefined }
+    return () => { disposed = true; observer.disconnect(); cancelAnimationFrame(resizeFrame); input.dispose(); terminal.dispose(); terminalRef.current = undefined }
   }, [session?.sessionId])
 
   useEffect(() => {
@@ -149,8 +232,8 @@ function TerminalContent(): React.ReactElement {
     setBusy(true); setMessage('')
     try {
       const result = decision
-        ? await window.harness.confirmNode(selectedProjectId, selectedRun.run_id, decision, comment, selectedRun.revision)
-        : await window.harness.completeNode(selectedProjectId, selectedRun.run_id, selectedRun.revision)
+        ? await window.harness.confirmNode(selectedProjectId, selectedRun.run_id, decision, comment, context?.revision || selectedRun.revision)
+        : await window.harness.completeNode(selectedProjectId, selectedRun.run_id, context?.revision || selectedRun.revision)
       if (result.error) throw new Error(String(result.error))
       const updated = runFromResult(result)
       if (updated) updateActiveRun(updated, String(result.revision || ''))

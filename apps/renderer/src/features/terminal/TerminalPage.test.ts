@@ -4,6 +4,7 @@ import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const source = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), 'TerminalPage.tsx'), 'utf8')
+const styles = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), '..', '..', 'app', 'styles.css'), 'utf8')
 
 describe('TerminalPage source contract', () => {
   it('uses xterm fit/search and the typed PTY bridge', () => {
@@ -20,5 +21,12 @@ describe('TerminalPage source contract', () => {
     expect(source).toContain('completeNode')
     expect(source).toContain('confirmNode')
     expect(source).toContain('worktreePath')
+  })
+
+  it('bounds the terminal grid and de-duplicates PTY resize updates', () => {
+    expect(styles).toContain('grid-template-rows: auto auto auto minmax(0, 1fr) auto')
+    expect(styles).toContain('.terminal-host { min-height: 0; height: 100%')
+    expect(source).toContain('lastTerminalSize.cols === terminal.cols')
+    expect(source).toContain('lastTerminalSize.rows === terminal.rows')
   })
 })

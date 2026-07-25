@@ -1,10 +1,12 @@
 import React, { useEffect, useState } from 'react'
 import { ProjectRequired, useWorkspace } from '../layout/WorkspaceContext'
+import { MarkdownPreview } from '../artifacts/ArtifactsPage'
 
 function KnowledgeContent(): React.ReactElement {
   const { selectedProjectId } = useWorkspace()
   const [candidates, setCandidates] = useState<any[]>([])
   const [tab, setTab] = useState<'draft' | 'accepted' | 'rejected'>('draft')
+  const [expandedId, setExpandedId] = useState<number | null>(null)
   const [msg, setMsg] = useState('')
 
   useEffect(() => {
@@ -26,37 +28,50 @@ function KnowledgeContent(): React.ReactElement {
   }
 
   const TYPE_LABELS: Record<string, string> = { case: 'Case', pitfall: 'Pitfall', decision: 'Decision', template: 'Template', pattern: 'Pattern' }
+  const STATUS_LABELS: Record<string, string> = { draft: 'Pending', accepted: 'Accepted', rejected: 'Rejected' }
 
   return (
-    <div style={{ padding: 24 }}>
+    <div className="knowledge-page">
       <h2>Knowledge Promotion</h2>
-      <div style={{ display: 'flex', gap: 8, margin: '12px 0' }}>
+      <div className="knowledge-tabs">
         {(['draft', 'accepted', 'rejected'] as const).map(t => (
-          <button key={t} onClick={() => setTab(t)} style={{
-            padding: '6px 16px', cursor: 'pointer', border: 'none', borderRadius: 6,
-            background: tab === t ? '#2196f3' : '#e0e0e0', color: tab === t ? '#fff' : '#333'
-          }}>{t === 'draft' ? 'Pending' : t === 'accepted' ? 'Accepted' : 'Rejected'}</button>
+          <button key={t} onClick={() => setTab(t)} className={tab === t ? 'active' : ''}>{t === 'draft' ? 'Pending' : t === 'accepted' ? 'Accepted' : 'Rejected'}</button>
         ))}
       </div>
       {msg && <p style={{ color: '#c62828', background: '#ffebee', padding: 8, borderRadius: 4 }}>{msg}</p>}
       {candidates.length === 0 && !msg && <p style={{ color: '#999' }}>No {tab} knowledge candidates.</p>}
+      <div className="knowledge-grid">
       {candidates.map((c: any) => (
-        <div key={c.id} style={{ padding: 12, margin: '8px 0', background: '#fff', border: '1px solid #ddd', borderRadius: 8 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div>
-              <strong>{c.title}</strong>
-              <span style={{ marginLeft: 8, fontSize: 12, background: '#e3f2fd', padding: '2px 8px', borderRadius: 4 }}>{TYPE_LABELS[c.type] || c.type}</span>
-            </div>
-            {tab === 'draft' && (
-              <div style={{ display: 'flex', gap: 6 }}>
-                <button onClick={() => review(c.id, 'accepted')} style={{ padding: '4px 12px', background: '#4caf50', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer' }}>Accept</button>
-                <button onClick={() => review(c.id, 'rejected')} style={{ padding: '4px 12px', background: '#f44336', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer' }}>Reject</button>
+        <article key={c.id} className="knowledge-card">
+          <div className="knowledge-card-header">
+            <div className="knowledge-title-group">
+              <h3>{c.title}</h3>
+              <div className="knowledge-keywords">
+                <span className="knowledge-tag tag-type">{TYPE_LABELS[c.type] || c.type}</span>
+                {c.run_id && <span className="knowledge-tag tag-run">Run {c.run_id}</span>}
               </div>
+            </div>
+            <span className={`knowledge-status ${c.status}`}>{STATUS_LABELS[c.status] || c.status}</span>
+          </div>
+          <p className="knowledge-summary">{c.summary}</p>
+          <div className="knowledge-actions">
+            <button className="button" onClick={() => setExpandedId(expandedId === c.id ? null : c.id)}>{expandedId === c.id ? 'Hide Details' : 'View Details'}</button>
+            {tab === 'draft' && (
+              <>
+                <button className="button success" onClick={() => review(c.id, 'accepted')}>Accept</button>
+                <button className="button danger" onClick={() => review(c.id, 'rejected')}>Reject</button>
+              </>
             )}
           </div>
-          <p style={{ fontSize: 13, color: '#666', margin: '8px 0 0 0' }}>{c.summary}</p>
-        </div>
+          {expandedId === c.id && <div className="knowledge-details">
+            <div className="knowledge-source">Source: <span className="mono">{c.source}</span></div>
+            {typeof c.content === 'string'
+              ? <MarkdownPreview content={c.content} />
+              : <pre style={{ maxHeight: 420, overflow: 'auto', background: '#f5f5f5', padding: 12, borderRadius: 4 }}>{JSON.stringify(c, null, 2)}</pre>}
+          </div>}
+        </article>
       ))}
+      </div>
     </div>
   )
 }

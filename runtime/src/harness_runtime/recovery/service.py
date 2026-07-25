@@ -91,6 +91,48 @@ def scan_sessions(project_id: Optional[str] = None) -> list[dict]:
                 (session_id,),
             )
     db.commit()
+    if project_id:
+        terminal_sessions = db.execute(
+            """SELECT * FROM terminal_sessions
+               WHERE status IN ('starting', 'running') AND project_id = ?""",
+            (project_id,),
+        ).fetchall()
+    else:
+        terminal_sessions = db.execute(
+            "SELECT * FROM terminal_sessions WHERE status IN ('starting', 'running')"
+        ).fetchall()
+    for row in terminal_sessions:
+        session_id = row["id"]
+        pid = row["pid"]
+        if pid and _is_process_alive(pid):
+            results.append({
+                "session_id": session_id,
+                "session_type": f"terminal:{row['kind']}",
+                "status": "recoverable",
+                "pid": pid,
+                "node_id": row["node_id"],
+                "run_id": row["run_id"],
+                "project_id": row["project_id"],
+                "worktree_path": row["cwd"],
+                "message": "Terminal session is still running",
+            })
+        else:
+            results.append({
+                "session_id": session_id,
+                "session_type": f"terminal:{row['kind']}",
+                "status": "orphan",
+                "pid": pid,
+                "node_id": row["node_id"],
+                "run_id": row["run_id"],
+                "project_id": row["project_id"],
+                "worktree_path": row["cwd"],
+                "message": "Terminal projection is active but process is not running",
+            })
+            db.execute(
+                "UPDATE terminal_sessions SET status = 'interrupted' WHERE id = ?",
+                (session_id,),
+            )
+    db.commit()
     return results
 
 

@@ -4,7 +4,9 @@ Architecture §6.4: KNOWLEDGE_PROMOTION generates candidate drafts.
 Writing to long-term knowledge base requires human review/accept.
 """
 
+import json
 from datetime import datetime, timezone
+from pathlib import Path
 
 from ..persistence.database import get_db
 
@@ -67,6 +69,89 @@ def list_candidates(project_id: str | None = None, status: str | None = None) ->
         params,
     ).fetchall()
     return [dict(r) for r in rows]
+
+
+def list_candidates_with_content(project_id: str, project_root: Path, status: str | None = None) -> list[dict]:
+    sync_phase_candidates(project_id, project_root)
+    candidates = list_candidates(project_id=project_id, status=status)
+    for candidate in candidates:
+        source = str(candidate.get("source") or "")
+        source_path = Path(source)
+        if not source_path.is_absolute():
+            source_path = (project_root / source).resolve()
+        if not source_path.is_file():
+            continue
+        try:
+            candidate["content"] = source_path.read_text(encoding="utf-8", errors="replace")
+            candidate["contentType"] = "markdown" if source_path.suffix.lower() == ".md" else "text"
+        except OSError:
+            continue
+    return candidates
+
+
+def sync_phase_candidates(project_id: str, project_root: Path) -> None:
+    """Import existing 19-knowledge-promotion.md artifacts as review drafts."""
+    _ensure_table()
+    runs_dir = project_root / ".harness" / "runs"
+    if not runs_dir.is_dir():
+        return
+    db = get_db()
+    for state_path in runs_dir.glob("*/state.json"):
+        try:
+            state = json.loads(state_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        run_id = str(state.get("run_id") or state_path.parent.name)
+        completed = state.get("completed_nodes") or []
+        if state.get("current_node") != "KNOWLEDGE_PROMOTION" and "KNOWLEDGE_PROMOTION" not in completed:
+            continue
+        phase_dir_value = str(state.get("phase_dir") or "")
+        if not phase_dir_value:
+            continue
+        phase_dir = (project_root / phase_dir_value).resolve()
+        source_path = phase_dir / "19-knowledge-promotion.md"
+        if not source_path.is_file() and state.get("worktree_path"):
+            worktree_phase_dir = (Path(str(state["worktree_path"])) / phase_dir_value).resolve()
+            source_path = worktree_phase_dir / "19-knowledge-promotion.md"
+        if not source_path.is_file():
+            continue
+        try:
+            source = str(source_path.relative_to(project_root.resolve()))
+        except ValueError:
+            source = str(source_path)
+        exists = db.execute(
+            "SELECT 1 FROM knowledge_candidates WHERE project_id = ? AND run_id = ? AND source = ?",
+            (project_id, run_id, source),
+        ).fetchone()
+        if exists:
+            continue
+        content = source_path.read_text(encoding="utf-8", errors="replace")
+        title, summary = _summarize_markdown_candidate(run_id, content)
+        db.execute(
+            """INSERT INTO knowledge_candidates (project_id, run_id, title, type, summary, source)
+               VALUES (?, ?, ?, ?, ?, ?)""",
+            (project_id, run_id, title, "case", summary, source),
+        )
+    db.commit()
+
+
+def _summarize_markdown_candidate(run_id: str, content: str) -> tuple[str, str]:
+    title = f"Knowledge promotion: {run_id}"
+    summary_parts: list[str] = []
+    for raw_line in content.splitlines():
+        line = raw_line.strip()
+        if not line:
+            continue
+        if line.startswith("#"):
+            heading = line.lstrip("#").strip()
+            if heading and title == f"Knowledge promotion: {run_id}":
+                title = heading[:120]
+            continue
+        summary_parts.append(line.lstrip("-* ").strip())
+        if len(" ".join(summary_parts)) >= 220:
+            break
+    summary = " ".join(summary_parts).strip()
+    return title, summary[:300] or "Knowledge promotion artifact is ready for review."
 
 
 def review_candidate(candidate_id: int, decision: str, reviewer: str = "user") -> dict:

@@ -81,7 +81,7 @@ export interface HarnessApi {
   createTerminal: (request: TerminalCreateRequest) => Promise<TerminalSessionSummary>
   listTerminals: (projectId: string) => Promise<TerminalSessionSummary[]>
   writeTerminal: (sessionId: string, data: string) => Promise<void>
-  getTerminalScrollback: (sessionId: string) => Promise<{ data: string; sequence: number }>
+  getTerminalScrollback: (sessionId: string) => Promise<{ data: string; sequence: number; missing?: boolean }>
   resizeTerminal: (sessionId: string, cols: number, rows: number) => Promise<void>
   stopTerminal: (sessionId: string) => Promise<TerminalSessionSummary>
   restartTerminal: (sessionId: string) => Promise<TerminalSessionSummary>

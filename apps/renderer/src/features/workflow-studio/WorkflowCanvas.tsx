@@ -1,8 +1,8 @@
 /**
  * Workflow Canvas — React Flow visual editor with drag-to-add from NodeCatalog.
  */
-import React, { useMemo, useCallback } from 'react'
-import ReactFlow, { Background, Controls, Node, Edge, useReactFlow } from 'reactflow'
+import React, { useMemo, useCallback, useEffect } from 'react'
+import ReactFlow, { Background, Controls, Node, Edge, useNodesState, useReactFlow } from 'reactflow'
 import 'reactflow/dist/style.css'
 import { useWorkflowDraft } from './useWorkflowDraft'
 
@@ -21,19 +21,24 @@ const NODE_ROLES: Record<string, string> = {
 export function WorkflowCanvas(): React.ReactElement {
   const { nodes, addNode, reorderNode, selectedNodeId, selectNode } = useWorkflowDraft()
   const { screenToFlowPosition } = useReactFlow()
+  const [flowNodes, setFlowNodes, onNodesChange] = useNodesState([])
 
-  const flowNodes: Node[] = useMemo(() =>
-    nodes.map((n, i) => ({
-      id: n.id, position: { x: 100, y: i * 80 + 20 },
-      data: { label: n.id, role: n.role },
-      type: 'default',
-      selected: n.id === selectedNodeId,
-      style: SYSTEM_NODES.has(n.id) ? { background: '#fff3cd', border: '1px solid #ffc107' } : undefined,
-    })), [nodes])
+  useEffect(() => {
+    setFlowNodes(nodes.map((n, i) => {
+      return {
+        id: n.id,
+        position: { x: 100, y: i * 80 + 20 },
+        data: { label: n.id, role: n.role },
+        type: 'default',
+        selected: n.id === selectedNodeId,
+        style: SYSTEM_NODES.has(n.id) ? { background: '#fff3cd', border: '1px solid #ffc107' } : undefined,
+      }
+    }))
+  }, [nodes, selectedNodeId, setFlowNodes])
 
   const flowEdges: Edge[] = useMemo(() =>
-    flowNodes.slice(0, -1).map((_, i) => ({ id: `e${i}`, source: flowNodes[i].id, target: flowNodes[i+1].id, type: 'smoothstep' })),
-    [flowNodes])
+    nodes.slice(0, -1).map((_, i) => ({ id: `e${i}`, source: nodes[i].id, target: nodes[i+1].id, type: 'smoothstep' })),
+    [nodes])
 
   // Handle drag-drop from NodeCatalog
   const onDragOver = useCallback((e: React.DragEvent) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move' }, [])
@@ -50,9 +55,12 @@ export function WorkflowCanvas(): React.ReactElement {
 
   const onNodeDragStop = useCallback((_e: React.MouseEvent, node: Node) => {
     const from = nodes.findIndex(n => n.id === node.id)
-    const to = Math.round((node.position.y - 20) / 80)
+    const to = flowNodes
+      .map((item) => ({ id: item.id, y: item.id === node.id ? node.position.y : item.position.y }))
+      .sort((a, b) => a.y - b.y)
+      .findIndex((item) => item.id === node.id)
     if (to >= 0 && to < nodes.length && to !== from) reorderNode(from, to)
-  }, [nodes, reorderNode])
+  }, [flowNodes, nodes, reorderNode])
 
   if (nodes.length === 0) return (
     <div style={{ height:600,display:'flex',alignItems:'center',justifyContent:'center',background:'#fafafa',border:'1px solid #ddd',borderRadius:8,color:'#999' }}>
@@ -62,7 +70,7 @@ export function WorkflowCanvas(): React.ReactElement {
 
   return (
     <div style={{ height:600, border:'1px solid #ddd',borderRadius:8 }} onDragOver={onDragOver} onDrop={onDrop}>
-      <ReactFlow nodes={flowNodes} edges={flowEdges} onNodeClick={(_event, node) => selectNode(node.id)} onNodeDragStop={onNodeDragStop} fitView nodesDraggable>
+      <ReactFlow nodes={flowNodes} edges={flowEdges} onNodesChange={onNodesChange} onNodeClick={(_event, node) => selectNode(node.id)} onNodeDragStop={onNodeDragStop} fitView nodesDraggable>
         <Background /><Controls />
       </ReactFlow>
     </div>

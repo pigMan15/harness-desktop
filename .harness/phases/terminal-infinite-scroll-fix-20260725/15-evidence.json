@@ -1,0 +1,98 @@
+{
+  "run_id": "terminal-infinite-scroll-fix-20260725",
+  "intent": "BUG_FIX",
+  "risk": "MEDIUM",
+  "changed_files": [
+    "apps/renderer/src/app/styles.css",
+    "apps/renderer/src/features/terminal/TerminalPage.tsx",
+    "apps/renderer/src/features/terminal/TerminalPage.test.ts",
+    "tests/e2e/multirun-terminal-workflow.spec.ts"
+  ],
+  "commands": [
+    {
+      "name": "编译检查（用户豁免）",
+      "command": "未执行 typecheck 或 production build",
+      "cwd": "G:\\Project\\ai\\harness-desktop\\.worktrees\\multirun-codex-terminal-implementation-20260724",
+      "exit_code": null,
+      "result": "WAIVED：用户明确要求跳过编译；详见 12-compile.md。"
+    },
+    {
+      "name": "Renderer 单元测试",
+      "command": "pnpm.cmd --filter @harness/renderer test",
+      "cwd": "G:\\Project\\ai\\harness-desktop\\.worktrees\\multirun-codex-terminal-implementation-20260724",
+      "exit_code": 0,
+      "result": "5 个测试文件、17 项测试全部通过；TerminalPage 3 项契约测试通过。"
+    },
+    {
+      "name": "首次浏览器场景命令",
+      "command": "pnpm.cmd test:e2e -- --grep terminal height remains stable --reporter=line",
+      "cwd": "G:\\Project\\ai\\harness-desktop\\.worktrees\\multirun-codex-terminal-implementation-20260724",
+      "exit_code": 1,
+      "result": "命令分隔符被作为字面参数，意外运行全部场景；端口 4173 又被前一轮 Vite PID 35712 占用且 esbuild 已停止，3 个 bridge 场景未渲染页面。没有得到产品高度结果。"
+    },
+    {
+      "name": "失效开发服务器诊断与清理",
+      "command": "确认 PID 35712 自 2026-07-24 23:35 起监听 4173，错误上下文为 The service is no longer running；精确 Stop-Process",
+      "cwd": "G:\\Project\\ai\\harness-desktop\\.worktrees\\multirun-codex-terminal-implementation-20260724",
+      "exit_code": 0,
+      "result": "仅结束失效的旧 Node/Vite 进程，未终止用户应用或其他 Electron 进程。"
+    },
+    {
+      "name": "第二次浏览器包装命令",
+      "command": "pnpm.cmd exec playwright test ... --grep terminal height remains stable --reporter=line",
+      "cwd": "G:\\Project\\ai\\harness-desktop\\.worktrees\\multirun-codex-terminal-implementation-20260724",
+      "exit_code": null,
+      "result": "新 Vite 已返回 HTTP 200，但 Windows 包装进程未启动 Chrome且不退出；人工终止挂起命令，保留已启动服务器后改用单 worker 直接场景。"
+    },
+    {
+      "name": "Terminal 高度稳定性场景",
+      "command": "pnpm.cmd exec playwright test tests/e2e/multirun-terminal-workflow.spec.ts --grep terminal height remains stable --workers=1 --reporter=line",
+      "cwd": "G:\\Project\\ai\\harness-desktop\\.worktrees\\multirun-codex-terminal-implementation-20260724",
+      "exit_code": 0,
+      "result": "系统 Chrome 中 1 项通过（2.3 秒）；连续 8 次采样 page scrollHeight、terminal host 和 xterm viewport，高度最大差值均不超过 1 CSS px。"
+    },
+    {
+      "name": "差异格式检查",
+      "command": "git diff --check",
+      "cwd": "G:\\Project\\ai\\harness-desktop\\.worktrees\\multirun-codex-terminal-implementation-20260724",
+      "exit_code": 0,
+      "result": "没有空白错误；仅显示 Windows CRLF 转换提示。"
+    }
+  ],
+  "gates": {
+    "G1_REQUIREMENTS": "PASS",
+    "G2_DESIGN": "PASS",
+    "G3_COMPILE": "WAIVED",
+    "G4_UNIT_TEST": "PASS",
+    "G5_ATDD": "NOT_REQUIRED",
+    "G6_EVIDENCE": "PASS",
+    "G7_PRERELEASE": "NOT_REQUIRED",
+    "G8_ACCEPTANCE": "NOT_RUN"
+  },
+  "artifacts": [
+    "00-intake.md",
+    "01-requirement-review.md",
+    "06-implementation-plan.md",
+    "08-change-request.md",
+    "09-branch.md",
+    "10-worktree.md",
+    "11-development.md",
+    "12-compile.md",
+    "13-unit-test.md",
+    "15-evidence.json"
+  ],
+  "waivers": [
+    {
+      "gate": "G3_COMPILE",
+      "scope": "Renderer TypeScript typecheck、Vite production build 和全仓编译检查",
+      "reason": "用户明确要求跳过 TDD 和编译",
+      "owner": "用户 / 项目发布负责人",
+      "time": "2026-07-25T08:34:00+08:00"
+    }
+  ],
+  "residual_risks": [
+    "没有 typecheck 或 production build 证据；类型和 bundler 风险由用户明确接受。",
+    "浏览器仅运行本次 Terminal 高度聚焦场景，没有执行完整 Playwright 集合。",
+    "普通浏览器没有 Electron preload，运行态场景使用仓库既有 typed bridge 模拟项目、Run 和 terminal session；真实 node-pty 协议未变化。"
+  ]
+}

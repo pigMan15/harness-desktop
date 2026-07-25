@@ -56,3 +56,34 @@ test('workflow studio exposes routes, recovery, rules, yaml and versions', async
   await tabs.getByRole('button', { name: 'Rules', exact: true }).click()
   await expect(page.getByRole('heading', { name: 'Effective hard rules' })).toBeVisible()
 })
+
+test('terminal height remains stable while idle', async ({ page }) => {
+  await installBridge(page)
+  await page.addInitScript(() => {
+    localStorage.setItem('harness.selectedRunId.project-a', 'run-b')
+  })
+  await page.goto('/#/terminal')
+  await expect(page.getByRole('heading', { name: 'Terminal' })).toBeVisible()
+  await expect(page.getByText('run-b', { exact: true }).first()).toBeVisible()
+
+  const samples: Array<{ page: number; host: number; viewport: number }> = []
+  for (let index = 0; index < 8; index += 1) {
+    samples.push(await page.evaluate(() => {
+      const pageScroll = document.querySelector<HTMLElement>('.page-scroll')
+      const host = document.querySelector<HTMLElement>('.terminal-host')
+      const viewport = document.querySelector<HTMLElement>('.xterm-viewport')
+      if (!pageScroll || !host || !viewport) throw new Error('Terminal layout is incomplete')
+      return {
+        page: pageScroll.scrollHeight,
+        host: host.getBoundingClientRect().height,
+        viewport: viewport.getBoundingClientRect().height,
+      }
+    }))
+    await page.waitForTimeout(100)
+  }
+
+  for (const key of ['page', 'host', 'viewport'] as const) {
+    const values = samples.map((sample) => sample[key])
+    expect(Math.max(...values) - Math.min(...values)).toBeLessThanOrEqual(1)
+  }
+})

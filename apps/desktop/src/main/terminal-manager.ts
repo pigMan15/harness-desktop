@@ -138,20 +138,23 @@ export class TerminalManager {
     return [...this.sessions.values()].filter((session) => session.projectId === projectId).map(publicSummary)
   }
 
-  readScrollback(ownerId: number, sessionId: string): { data: string; sequence: number } {
-    const session = this.owned(ownerId, sessionId)
+  readScrollback(ownerId: number, sessionId: string): { data: string; sequence: number; missing?: boolean } {
+    const session = this.maybeOwned(ownerId, sessionId)
+    if (!session) return { data: '', sequence: 0, missing: true }
     return { data: session.scrollback, sequence: session.sequence }
   }
 
   write(ownerId: number, sessionId: string, data: string): void {
-    const session = this.owned(ownerId, sessionId)
+    const session = this.maybeOwned(ownerId, sessionId)
+    if (!session) return
     if (!isActive(session.status)) throw new Error('TERMINAL_SESSION_NOT_ACTIVE')
     if (Buffer.byteLength(data, 'utf8') > 64 * 1024) throw new Error('TERMINAL_INPUT_TOO_LARGE')
     session.pty.write(data)
   }
 
   resize(ownerId: number, sessionId: string, cols: number, rows: number): void {
-    const session = this.owned(ownerId, sessionId)
+    const session = this.maybeOwned(ownerId, sessionId)
+    if (!session) return
     session.cols = clamp(cols, 20, 500)
     session.rows = clamp(rows, 5, 200)
     session.pty.resize(session.cols, session.rows)
@@ -192,6 +195,13 @@ export class TerminalManager {
   private owned(ownerId: number, sessionId: string): ManagedSession {
     const session = this.sessions.get(sessionId)
     if (!session) throw new Error('TERMINAL_SESSION_NOT_FOUND')
+    if (session.ownerId !== ownerId) throw new Error('TERMINAL_SESSION_OWNER_MISMATCH')
+    return session
+  }
+
+  private maybeOwned(ownerId: number, sessionId: string): ManagedSession | undefined {
+    const session = this.sessions.get(sessionId)
+    if (!session) return undefined
     if (session.ownerId !== ownerId) throw new Error('TERMINAL_SESSION_OWNER_MISMATCH')
     return session
   }

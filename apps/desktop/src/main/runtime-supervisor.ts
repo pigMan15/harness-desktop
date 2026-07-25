@@ -61,12 +61,17 @@ export class RuntimeSupervisor extends EventEmitter {
       check = parent
     }
     console.log('[Supervisor] Project root:', projectRoot)
+    const runtimeSourcePath = path.join(projectRoot, 'runtime', 'src')
+    const pythonPath = process.env.PYTHONPATH
+      ? `${runtimeSourcePath}${path.delimiter}${process.env.PYTHONPATH}`
+      : runtimeSourcePath
 
     this.process = spawn(runtime.cmd, runtime.args, {
       env: {
         ...process.env,
         HARNESS_RUNTIME_TOKEN: this.token,
         HARNESS_PROJECT_ROOT: projectRoot,
+        PYTHONPATH: pythonPath,
       },
       stdio: ['ignore', 'pipe', 'pipe'],
     })
