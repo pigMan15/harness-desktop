@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 
 from harness_runtime.runs.service import (
+    _dirty_worktree_message,
     archive_run,
     create_run,
     create_run_and_activate,
@@ -45,6 +46,17 @@ class TestRunIdValidation:
     def test_duplicate(self):
         errors = validate_run_id("test-001", {"test-001"})
         assert len(errors) > 0
+
+
+def test_dirty_worktree_message_includes_status_lines_and_truncates():
+    status = "\n".join(f" M file-{index}.txt" for index in range(22))
+
+    message = _dirty_worktree_message("TARGET_WORKTREE_DIRTY", status)
+
+    assert message.startswith("TARGET_WORKTREE_DIRTY:\n M file-0.txt")
+    assert " M file-19.txt" in message
+    assert "file-20.txt" not in message
+    assert "... and 2 more" in message
 
 
 class TestCreateRun:

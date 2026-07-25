@@ -285,10 +285,12 @@ def merge_run_back(
     target_branch = _git(Path(git_root), "rev-parse", "--abbrev-ref", "HEAD").stdout.strip()
     if target_branch == "HEAD":
         raise RuntimeError("TARGET_BRANCH_DETACHED")
-    if _git(Path(git_root), "status", "--porcelain").stdout.strip():
-        raise RuntimeError("TARGET_WORKTREE_DIRTY")
-    if _git(worktree_path, "status", "--porcelain").stdout.strip():
-        raise RuntimeError("RUN_WORKTREE_DIRTY")
+    target_status = _git(Path(git_root), "status", "--short").stdout.strip()
+    if target_status:
+        raise RuntimeError(_dirty_worktree_message("TARGET_WORKTREE_DIRTY", target_status))
+    run_status = _git(worktree_path, "status", "--short").stdout.strip()
+    if run_status:
+        raise RuntimeError(_dirty_worktree_message("RUN_WORKTREE_DIRTY", run_status))
 
     before = _git(Path(git_root), "rev-parse", "HEAD").stdout.strip()
     _git(Path(git_root), "merge", "--ff-only", branch_name)
@@ -312,6 +314,13 @@ def merge_run_back(
         "after": after,
         "fastForward": before != after,
     }
+
+
+def _dirty_worktree_message(code: str, status: str) -> str:
+    lines = [line for line in status.splitlines() if line.strip()]
+    shown = lines[:20]
+    suffix = "" if len(lines) <= len(shown) else f"\n... and {len(lines) - len(shown)} more"
+    return f"{code}:\n" + "\n".join(shown) + suffix
 
 
 def get_execution_context(
