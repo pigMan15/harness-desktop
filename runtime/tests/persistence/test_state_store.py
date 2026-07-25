@@ -224,3 +224,49 @@ class TestStateStore:
         assert json.loads(
             (project_dir / ".harness" / "runs" / "worktree-sync" / "state.json").read_text(encoding="utf-8")
         )["status"] == "DONE"
+
+    def test_read_run_state_prefers_more_advanced_worktree_projection(self, project_dir, sample_state, tmp_path):
+        worktree = tmp_path / "run-worktree"
+        worktree.mkdir()
+        main_state = {
+            **sample_state,
+            "run_id": "projection-sync",
+            "status": "ROUTING",
+            "current_node": "INTAKE",
+            "completed_nodes": [],
+            "last_updated": "2026-07-25T05:33:19+00:00",
+            "worktree_path": str(worktree),
+        }
+        main_snapshot = project_dir / ".harness" / "runs" / "projection-sync" / "state.json"
+        main_snapshot.parent.mkdir(parents=True)
+        main_snapshot.write_text(json.dumps(main_state, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+        stale_worktree_run = {
+            **main_state,
+            "last_updated": "2026-07-25T05:33:17+00:00",
+        }
+        worktree_run = worktree / ".harness" / "runs" / "projection-sync"
+        worktree_run.mkdir(parents=True)
+        (worktree_run / "state.json").write_text(
+            json.dumps(stale_worktree_run, ensure_ascii=False, indent=2) + "\n",
+            encoding="utf-8",
+        )
+        completed_projection = {
+            **main_state,
+            "status": "COMPLETED",
+            "current_node": "KNOWLEDGE_PROMOTION",
+            "next_role": "knowledge-keeper",
+            "completed_nodes": [f"NODE_{index}" for index in range(12)],
+            "last_updated": "2026-07-25T00:00:00+08:00",
+        }
+        (worktree / ".harness" / "state.json").write_text(
+            json.dumps(completed_projection, ensure_ascii=False, indent=2) + "\n",
+            encoding="utf-8",
+        )
+
+        reconciled, _ = read_run_state(project_dir, "projection-sync")
+
+        assert reconciled["status"] == "COMPLETED"
+        assert reconciled["current_node"] == "KNOWLEDGE_PROMOTION"
+        assert len(reconciled["completed_nodes"]) == 12
+        assert json.loads(main_snapshot.read_text(encoding="utf-8"))["status"] == "COMPLETED"

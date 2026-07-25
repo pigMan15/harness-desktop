@@ -17,10 +17,12 @@ The outer UI reads the project root snapshot. Without reconciliation, Runs/Gates
 ## Implementation
 
 - `read_run_state()` checks `worktree_path` for a newer matching run state.
+- When both worktree run snapshot and worktree projection exist, the runtime chooses the state with greater workflow progress.
 - If the worktree state is newer, it is written back to:
   - project `.harness/runs/<run_id>/state.json`
   - project `.harness/state.json` when that run is selected
 - Existing main-only metadata such as `branch_name`, `worktree_path`, and `worktree_status` is preserved if the worktree state lacks it.
+- Progress comparison now prefers `completed_nodes` count and terminal statuses before comparing timestamps, so a completed worktree projection is not ignored because of a stale or coarse timestamp.
 - Artifact and gate phase resolution now falls back to the worktree phase directory when the project-root phase is empty.
 
 ## Validation
@@ -28,4 +30,4 @@ The outer UI reads the project root snapshot. Without reconciliation, Runs/Gates
 - `py -3 -m py_compile runtime\src\harness_runtime\persistence\state_store.py runtime\src\harness_runtime\api\app.py`
 - `py -3 -m pytest runtime\tests\persistence\test_state_store.py runtime\tests\api\test_artifact_api.py runtime\tests\runs\test_run_service.py --basetemp test-results\pytest-worktree-state-reconcile`
 
-Result: 36 passed.
+Result: 37 passed.

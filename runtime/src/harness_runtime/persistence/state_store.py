@@ -70,28 +70,49 @@ def _read_worktree_run_content(state: dict, run_id: str) -> str:
         worktree_root / ".harness" / "runs" / run_id / "state.json",
         worktree_root / ".harness" / "state.json",
     ]
+    candidates_with_state: list[tuple[str, dict]] = []
     for candidate in candidates:
         content = atomic_read(candidate)
-        if content:
-            return content
-    return ""
+        if not content:
+            continue
+        try:
+            parsed = json.loads(content)
+        except json.JSONDecodeError:
+            continue
+        if parsed.get("run_id") == run_id:
+            candidates_with_state.append((content, parsed))
+    if not candidates_with_state:
+        return ""
+    return max(candidates_with_state, key=lambda item: _state_progress_key(item[1]))[0]
 
 
 def _worktree_state_is_newer(authoritative: dict, candidate: dict) -> bool:
     if candidate == authoritative:
         return False
+    candidate_completed = len(candidate.get("completed_nodes", []) or [])
+    authoritative_completed = len(authoritative.get("completed_nodes", []) or [])
+    if candidate_completed != authoritative_completed:
+        return candidate_completed > authoritative_completed
+    terminal_states = {"DONE", "COMPLETED", "BLOCKED"}
+    candidate_terminal = candidate.get("status") in terminal_states
+    authoritative_terminal = authoritative.get("status") in terminal_states
+    if candidate_terminal != authoritative_terminal:
+        return candidate_terminal
     candidate_time = _parse_time(candidate.get("last_updated"))
     authoritative_time = _parse_time(authoritative.get("last_updated"))
     if candidate_time and authoritative_time:
         return candidate_time > authoritative_time
     if candidate_time and not authoritative_time:
         return True
-    candidate_completed = len(candidate.get("completed_nodes", []) or [])
-    authoritative_completed = len(authoritative.get("completed_nodes", []) or [])
-    if candidate_completed != authoritative_completed:
-        return candidate_completed > authoritative_completed
-    terminal_states = {"DONE", "BLOCKED"}
-    return candidate.get("status") in terminal_states and candidate.get("status") != authoritative.get("status")
+    return False
+
+
+def _state_progress_key(state: dict) -> tuple[int, int, float]:
+    completed = len(state.get("completed_nodes", []) or [])
+    terminal = 1 if state.get("status") in {"DONE", "COMPLETED", "BLOCKED"} else 0
+    parsed = _parse_time(state.get("last_updated"))
+    timestamp = parsed.timestamp() if parsed else 0.0
+    return completed, terminal, timestamp
 
 
 def _parse_time(value: object) -> datetime | None:
