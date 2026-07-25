@@ -2,6 +2,7 @@
 
 import json
 import shutil
+import subprocess
 import tempfile
 from pathlib import Path
 
@@ -81,6 +82,24 @@ class TestImportProject:
             assert state["run_id"] == "local-initial"
             assert (root / ".harness" / "runs" / "local-initial" / "state.json").is_file()
             assert not (root / ".harness" / "runs" / "desktop-foundation-20260721").exists()
+
+    def test_initialize_stages_harness_files_in_git_repository(self, tmp_path):
+        subprocess.run(["git", "init"], cwd=tmp_path, check=True, capture_output=True)
+
+        preview = import_project(str(tmp_path))
+        result = import_project(str(tmp_path), preview["action"])
+
+        staged = subprocess.run(
+            ["git", "diff", "--cached", "--name-only"],
+            cwd=tmp_path,
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.splitlines()
+        assert result["gitStage"]["status"] == "staged"
+        assert ".harness/state.json" in staged
+        assert "AGENTS.md" in staged
+        assert "CLAUDE.md" in staged
 
     def test_partial_harness_can_append_missing_files_without_overwriting_existing_files(self):
         source = FIXTURES / "valid-project"

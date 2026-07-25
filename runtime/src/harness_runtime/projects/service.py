@@ -4,6 +4,7 @@ Architecture §6.1: Import, register, unregister, validate .harness projects.
 Architecture §5.4: Protocol-incompatible projects return readonly status.
 """
 
+import subprocess
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -51,7 +52,9 @@ def import_project(project_path: str, decision: str | None = None) -> dict:
 
         operation = apply_bootstrap(root, decision)
         try:
-            return _register_project(root, strict=True)
+            summary = _register_project(root, strict=True)
+            summary["gitStage"] = _stage_harness_files(root)
+            return summary
         except Exception:
             # 确认后的写入失败不能留下半成品，也不能先注册再补救。
             rollback_bootstrap(root, operation)
@@ -59,7 +62,9 @@ def import_project(project_path: str, decision: str | None = None) -> dict:
 
     if decision is not None:
         raise ValueError("IMPORT_DECISION_NOT_REQUIRED: project is already complete")
-    return _register_project(root, strict=False)
+    summary = _register_project(root, strict=False)
+    summary["gitStage"] = _stage_harness_files(root)
+    return summary
 
 
 def _register_project(root: Path, strict: bool) -> dict:
@@ -159,7 +164,9 @@ def repair_project(project_id: str) -> dict:
     missing = list_missing_files(root)
     if missing:
         apply_bootstrap(root, "append")
-    return _register_project(root, strict=True)
+    summary = _register_project(root, strict=True)
+    summary["gitStage"] = _stage_harness_files(root)
+    return summary
 
 
 def relocate_project(project_id: str, project_path: str) -> dict:
@@ -229,6 +236,40 @@ def _row_to_dict(row) -> dict:
         "createdAt": row["created_at"],
         "updatedAt": row["updated_at"],
     }
+
+
+def _stage_harness_files(root: Path) -> dict:
+    """Stage Harness-owned project files when importing a Git repository.
+
+    Import must not create commits, but staging the generated/updated Harness files ensures
+    later `git worktree add` runs inherit `.harness`, `AGENTS.md`, and `CLAUDE.md`.
+    """
+    candidates = [".harness", "AGENTS.md", "CLAUDE.md"]
+    existing = [relative for relative in candidates if (root / relative).exists()]
+    if not existing:
+        return {"status": "skipped", "reason": "NO_HARNESS_FILES", "files": []}
+
+    probe = subprocess.run(
+        ["git", "rev-parse", "--is-inside-work-tree"],
+        cwd=root,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    if probe.returncode != 0:
+        return {"status": "skipped", "reason": "GIT_REPOSITORY_REQUIRED", "files": existing}
+
+    result = subprocess.run(
+        ["git", "add", "-f", "--", *existing],
+        cwd=root,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        message = (result.stderr or result.stdout or "git add failed").strip()
+        return {"status": "failed", "reason": message, "files": existing}
+    return {"status": "staged", "files": existing}
 
 
 def _now() -> str:
