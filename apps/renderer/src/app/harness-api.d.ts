@@ -96,6 +96,11 @@ export interface HarnessApi {
   exportDiagnostics: (projectId: string) => Promise<ApiObject>
   listKnowledge: (projectId: string, status: string) => Promise<unknown[] | { error: string }>
   reviewKnowledge: (projectId: string, candidateId: number, decision: string) => Promise<ApiObject>
+  getKnowledgeRepoStatus: (projectId: string) => Promise<ApiObject>
+  configureKnowledgeRepo: (projectId: string, localPath: string, remoteUrl: string, branch: string) => Promise<ApiObject>
+  pullKnowledgeRepo: (projectId: string) => Promise<ApiObject>
+  synthesizeKnowledgeRepo: (projectId: string, candidateIds: number[]) => Promise<ApiObject>
+  pushKnowledgeRepo: (projectId: string) => Promise<ApiObject>
   probeExecution: (projectId: string) => Promise<ApiObject>
   startExecution: (projectId: string, runId: string, expectedRevision?: string) => Promise<ApiObject>
   pollExecution: (projectId: string, runId: string, sessionId: string) => Promise<unknown>

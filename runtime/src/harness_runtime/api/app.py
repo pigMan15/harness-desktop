@@ -180,6 +180,21 @@ async def _dispatch(method: str, params: dict) -> Any:
         return _knowledge_list(project_id, project_root, params.get("status", "draft"))
     if method == "knowledge.review":
         return _knowledge_review(params.get("candidateId", 0), params.get("decision", "accepted"))
+    if method == "knowledge.repo.status":
+        return _knowledge_repo_status(project_id)
+    if method == "knowledge.repo.configure":
+        return _knowledge_repo_configure(
+            project_id,
+            params.get("localPath", ""),
+            params.get("remoteUrl", ""),
+            params.get("branch", ""),
+        )
+    if method == "knowledge.repo.pull":
+        return _knowledge_repo_pull(project_id)
+    if method == "knowledge.repo.synthesize":
+        return _knowledge_repo_synthesize(project_id, project_root, params.get("candidateIds", []))
+    if method == "knowledge.repo.push":
+        return _knowledge_repo_push(project_id)
     if method == "execution.probe":
         return await _execution_probe()
     if method == "execution.start":
@@ -786,6 +801,31 @@ def _knowledge_list(project_id: str, project_root: Path, status: str) -> list[di
 def _knowledge_review(candidate_id: int, decision: str) -> dict:
     from ..knowledge.service import review_candidate
     return review_candidate(candidate_id, decision)
+
+
+def _knowledge_repo_status(project_id: str) -> dict:
+    from ..knowledge.shared_repo import repo_status
+    return repo_status(project_id)
+
+
+def _knowledge_repo_configure(project_id: str, local_path: str, remote_url: str, branch: str) -> dict:
+    from ..knowledge.shared_repo import configure_repo
+    return configure_repo(project_id, local_path, remote_url, branch)
+
+
+def _knowledge_repo_pull(project_id: str) -> dict:
+    from ..knowledge.shared_repo import pull_repo
+    return pull_repo(project_id)
+
+
+def _knowledge_repo_synthesize(project_id: str, project_root: Path, candidate_ids: list[int]) -> dict:
+    from ..knowledge.shared_repo import synthesize_preview
+    return synthesize_preview(project_id, project_root, candidate_ids)
+
+
+def _knowledge_repo_push(project_id: str) -> dict:
+    from ..knowledge.shared_repo import push_repo
+    return push_repo(project_id)
 
 
 def _get_phase_dir(project_root: Path, run_id: str):

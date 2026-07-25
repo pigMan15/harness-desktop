@@ -265,6 +265,16 @@ app.whenReady().then(() => {
     runtimeCall('knowledge.list', { projectId, status }))
   ipcMain.handle('knowledge:review', async (_e, projectId: string, candidateId: number, decision: string) =>
     runtimeCall('knowledge.review', { projectId, candidateId, decision }))
+  ipcMain.handle('knowledge:repo-status', async (_e, projectId: string) =>
+    runtimeCall('knowledge.repo.status', { projectId }))
+  ipcMain.handle('knowledge:repo-configure', async (_e, projectId: string, localPath: string, remoteUrl: string, branch: string) =>
+    runtimeCall('knowledge.repo.configure', { projectId, localPath, remoteUrl, branch }))
+  ipcMain.handle('knowledge:repo-pull', async (_e, projectId: string) =>
+    runtimeCall('knowledge.repo.pull', { projectId }))
+  ipcMain.handle('knowledge:repo-synthesize', async (_e, projectId: string, candidateIds: number[]) =>
+    runtimeCall('knowledge.repo.synthesize', { projectId, candidateIds }))
+  ipcMain.handle('knowledge:repo-push', async (_e, projectId: string) =>
+    runtimeCall('knowledge.repo.push', { projectId }))
 
   // ── IPC: Execution ──
   ipcMain.handle('execution:probe', async (_e, projectId: string) =>
