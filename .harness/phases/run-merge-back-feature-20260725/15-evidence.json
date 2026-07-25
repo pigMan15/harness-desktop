@@ -1,0 +1,38 @@
+{
+  "run_id": "run-merge-back-feature-20260725",
+  "intent": "FEATURE",
+  "risk": "MEDIUM",
+  "commands": [
+    {
+      "command": "py -3 -m py_compile runtime\\src\\harness_runtime\\runs\\service.py runtime\\src\\harness_runtime\\api\\app.py",
+      "exit_code": 0,
+      "summary": "Runtime API and run service compile."
+    },
+    {
+      "command": ".\\node_modules\\.bin\\tsc.CMD --project apps\\desktop\\tsconfig.json --noEmit",
+      "exit_code": 0,
+      "summary": "Desktop main/preload TypeScript passes."
+    },
+    {
+      "command": ".\\node_modules\\.bin\\tsc.CMD --project apps\\renderer\\tsconfig.json --noEmit",
+      "exit_code": 0,
+      "summary": "Renderer TypeScript passes."
+    }
+  ],
+  "changed_files": [
+    "runtime/src/harness_runtime/runs/service.py",
+    "runtime/src/harness_runtime/api/app.py",
+    "apps/desktop/src/main/index.ts",
+    "apps/desktop/src/preload/index.ts",
+    "apps/desktop/src/preload/harness-api.ts",
+    "apps/renderer/src/app/harness-api.d.ts",
+    "apps/renderer/src/features/runs/RunsPage.tsx"
+  ],
+  "gates": {
+    "G3_COMPILE": "PASS",
+    "G4_UNIT_TEST": "WAIVED",
+    "G6_EVIDENCE": "PASS",
+    "G8_ACCEPTANCE": "PASS"
+  }
+}
+

@@ -110,6 +110,10 @@ async def _dispatch(method: str, params: dict) -> Any:
         return _run_archive(
             project_id, project_root, params.get("runId", ""), params.get("expectedRevision")
         )
+    if method == "run.mergeBack":
+        return _run_merge_back(
+            project_root, params.get("runId", ""), params.get("expectedRevision")
+        )
     if method == "run.executionContext":
         return _run_execution_context(
             project_root, params.get("runId", ""), params.get("expectedRevision")
@@ -324,6 +328,13 @@ def _run_archive(
 
     state, revision = archive_run(project_root, run_id, expected_revision)
     return {"run": state, "revision": revision}
+
+
+def _run_merge_back(project_root: Path, run_id: str, expected_revision: str | None) -> dict:
+    from ..runs.service import merge_run_back
+
+    state, revision, merge = merge_run_back(project_root, run_id, expected_revision)
+    return {"run": state, "revision": revision, "merge": merge}
 
 
 def _run_execution_context(

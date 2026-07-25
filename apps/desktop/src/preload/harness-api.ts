@@ -22,6 +22,7 @@ export interface HarnessApi {
   pauseRun: (projectId: string, runId: string, expectedRevision?: string) => Promise<unknown>
   resumeRun: (projectId: string, runId: string, expectedRevision?: string) => Promise<unknown>
   archiveRun: (projectId: string, runId: string, expectedRevision?: string) => Promise<unknown>
+  mergeRunBack: (projectId: string, runId: string, expectedRevision?: string) => Promise<unknown>
   getRunExecutionContext: (projectId: string, runId: string, expectedRevision?: string) => Promise<unknown>
   completeNode: (projectId: string, runId: string, expectedRevision?: string) => Promise<unknown>
   confirmNode: (projectId: string, runId: string, decision: 'accept' | 'reject' | 'defer', comment: string, expectedRevision?: string) => Promise<unknown>

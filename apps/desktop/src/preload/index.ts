@@ -16,6 +16,7 @@ const harnessApi: HarnessApi = {
   pauseRun: (p: string,id: string,rev?: string) => ipcRenderer.invoke('run:pause',p,id,rev),
   resumeRun: (p: string,id: string,rev?: string) => ipcRenderer.invoke('run:resume',p,id,rev),
   archiveRun: (p: string,id: string,rev?: string) => ipcRenderer.invoke('run:archive',p,id,rev),
+  mergeRunBack: (p: string,id: string,rev?: string) => ipcRenderer.invoke('run:merge-back',p,id,rev),
   getRunExecutionContext: (p: string,id: string,rev?: string) => ipcRenderer.invoke('run:execution-context',p,id,rev),
   completeNode: (p: string,id: string,rev?: string) => ipcRenderer.invoke('node:complete',p,id,rev),
   confirmNode: (p: string,id: string,d,c,rev?: string) => ipcRenderer.invoke('node:confirm',p,id,d,c,rev),

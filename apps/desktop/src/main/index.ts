@@ -173,6 +173,8 @@ app.whenReady().then(() => {
     runtimeCall('run.resume', { projectId, runId, expectedRevision }))
   ipcMain.handle('run:archive', async (_e, projectId: string, runId: string, expectedRevision?: string) =>
     runtimeCall('run.archive', { projectId, runId, expectedRevision }))
+  ipcMain.handle('run:merge-back', async (_e, projectId: string, runId: string, expectedRevision?: string) =>
+    runtimeCall('run.mergeBack', { projectId, runId, expectedRevision }))
   ipcMain.handle('run:execution-context', async (_e, projectId: string, runId: string, expectedRevision?: string) =>
     runtimeCall('run.executionContext', { projectId, runId, expectedRevision }))
 

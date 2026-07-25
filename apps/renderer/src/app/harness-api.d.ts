@@ -23,6 +23,10 @@ export interface RunSummary {
   branch_name?: string
   worktree_path?: string
   worktree_status?: string
+  merged_back?: boolean
+  merged_target_branch?: string
+  merged_commit?: string
+  merged_at?: string
   archived?: boolean
   archived_at?: string
 }
@@ -55,6 +59,7 @@ export interface HarnessApi {
   pauseRun: (projectId: string, runId: string, expectedRevision?: string) => Promise<ApiObject>
   resumeRun: (projectId: string, runId: string, expectedRevision?: string) => Promise<ApiObject>
   archiveRun: (projectId: string, runId: string, expectedRevision?: string) => Promise<ApiObject>
+  mergeRunBack: (projectId: string, runId: string, expectedRevision?: string) => Promise<ApiObject>
   getRunExecutionContext: (projectId: string, runId: string, expectedRevision?: string) => Promise<ApiObject>
   completeNode: (projectId: string, runId: string, expectedRevision?: string) => Promise<ApiObject>
   confirmNode: (projectId: string, runId: string, decision: 'accept' | 'reject' | 'defer', comment: string, expectedRevision?: string) => Promise<ApiObject>

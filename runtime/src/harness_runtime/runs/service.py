@@ -6,6 +6,7 @@ Architecture §6.1: create_run 只接受用户提供的 Intent/Risk，不提供�
 
 from datetime import datetime, timezone
 from pathlib import Path
+import subprocess
 from typing import Optional
 
 from ..persistence.state_store import (
@@ -118,6 +119,10 @@ def list_runs(project_root: Path) -> list[dict]:
                 "branch_name": state.get("branch_name"),
                 "worktree_path": state.get("worktree_path"),
                 "worktree_status": state.get("worktree_status"),
+                "merged_back": bool(state.get("merged_back", False)),
+                "merged_target_branch": state.get("merged_target_branch"),
+                "merged_commit": state.get("merged_commit"),
+                "merged_at": state.get("merged_at"),
                 "archived": bool(state.get("archived", False)),
                 "archived_at": state.get("archived_at"),
             }
@@ -257,6 +262,58 @@ def archive_run(
     return state, revision
 
 
+def merge_run_back(
+    project_root: Path,
+    run_id: str,
+    expected_revision: Optional[str] = None,
+) -> tuple[dict, str, dict]:
+    """Fast-forward merge a Run branch/worktree back into the project branch."""
+    state, current_revision = read_run_state(project_root, run_id)
+    if not state:
+        raise ValueError(f"RUN_NOT_FOUND: {run_id}")
+    if expected_revision is not None and expected_revision != current_revision:
+        raise RuntimeError("REVISION_CONFLICT")
+
+    branch_name = str(state.get("branch_name") or "")
+    worktree_path = Path(str(state.get("worktree_path") or ""))
+    if not branch_name:
+        raise RuntimeError("RUN_BRANCH_MISSING")
+    if not worktree_path.is_dir():
+        raise RuntimeError(f"RUN_WORKTREE_MISSING: {worktree_path}")
+
+    git_root = _git(project_root, "rev-parse", "--show-toplevel").stdout.strip()
+    target_branch = _git(Path(git_root), "rev-parse", "--abbrev-ref", "HEAD").stdout.strip()
+    if target_branch == "HEAD":
+        raise RuntimeError("TARGET_BRANCH_DETACHED")
+    if _git(Path(git_root), "status", "--porcelain").stdout.strip():
+        raise RuntimeError("TARGET_WORKTREE_DIRTY")
+    if _git(worktree_path, "status", "--porcelain").stdout.strip():
+        raise RuntimeError("RUN_WORKTREE_DIRTY")
+
+    before = _git(Path(git_root), "rev-parse", "HEAD").stdout.strip()
+    _git(Path(git_root), "merge", "--ff-only", branch_name)
+    after = _git(Path(git_root), "rev-parse", "HEAD").stdout.strip()
+
+    state["merged_back"] = True
+    state["merged_target_branch"] = target_branch
+    state["merged_commit"] = after
+    state["merged_at"] = datetime.now(timezone.utc).isoformat()
+    state["notes"] = f"Run branch {branch_name} merged back to {target_branch} at {after[:12]}."
+    revision = write_run_state(
+        project_root,
+        run_id,
+        state,
+        expected_revision=current_revision,
+    )
+    return state, revision, {
+        "targetBranch": target_branch,
+        "branchName": branch_name,
+        "before": before,
+        "after": after,
+        "fastForward": before != after,
+    }
+
+
 def get_execution_context(
     project_root: Path,
     run_id: str,
@@ -318,6 +375,22 @@ def get_execution_context(
             f"EXECUTION_ROOT_MISSING: {execution_root}",
         )
     return _execution_context_result(project_root, state, current_revision, True, "")
+
+
+def _git(cwd: Path, *args: str) -> subprocess.CompletedProcess[str]:
+    try:
+        return subprocess.run(
+            ["git", "-c", "core.longpaths=true", *args],
+            cwd=cwd,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+    except FileNotFoundError as exc:
+        raise RuntimeError("GIT_EXECUTABLE_NOT_FOUND") from exc
+    except subprocess.CalledProcessError as exc:
+        message = (exc.stderr or exc.stdout or "git command failed").strip()
+        raise RuntimeError(message) from exc
 
 
 def _execution_context_result(

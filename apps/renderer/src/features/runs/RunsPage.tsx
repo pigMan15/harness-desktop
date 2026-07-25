@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react'
-import { Archive, Pause, Play, RefreshCw, SquareTerminal } from 'lucide-react'
+import { Archive, GitMerge, Pause, Play, RefreshCw, SquareTerminal } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import type { RunSummary } from '../../app/harness-api'
 import { ProjectRequired, useWorkspace } from '../layout/WorkspaceContext'
@@ -15,6 +15,10 @@ function runFromState(state: Record<string, unknown>): RunSummary {
     blocked_by: (state.blocked_by as string[]) || [], phase_dir: String(state.phase_dir || ''), active: true,
     revision: String(state.revision || ''), branch_name: state.branch_name ? String(state.branch_name) : undefined,
     worktree_path: state.worktree_path ? String(state.worktree_path) : undefined,
+    merged_back: Boolean(state.merged_back),
+    merged_target_branch: state.merged_target_branch ? String(state.merged_target_branch) : undefined,
+    merged_commit: state.merged_commit ? String(state.merged_commit) : undefined,
+    merged_at: state.merged_at ? String(state.merged_at) : undefined,
   }
 }
 
@@ -70,6 +74,21 @@ function TasksContent(): React.ReactElement {
     finally { setBusy(false) }
   }
 
+  async function mergeBack(run: RunSummary): Promise<void> {
+    if (!window.harness) return
+    if (!window.confirm(`Merge ${run.branch_name || run.run_id} back into the current project branch?`)) return
+    setBusy(true); setMessage('')
+    try {
+      const result = await window.harness.mergeRunBack(selectedProjectId, run.run_id, run.revision || undefined)
+      if (result.error) throw new Error(String(result.error))
+      updateActiveRun(runFromState(result.run as Record<string, unknown>), String(result.revision || ''))
+      const merge = result.merge as Record<string, unknown> | undefined
+      setMessage(`Merged into ${String(merge?.targetBranch || 'target branch')} at ${String(merge?.after || '').slice(0, 12)}`)
+      await loadRuns()
+    } catch (cause) { setMessage(cause instanceof Error ? cause.message : 'Merge back failed') }
+    finally { setBusy(false) }
+  }
+
   return (
     <section className="page">
       <header className="page-header"><h1>Runs</h1><div className="actions">
@@ -96,6 +115,7 @@ function TasksContent(): React.ReactElement {
             <td>{run.current_node}</td><td>{run.completed_nodes.length}/{run.required_nodes.length}</td>
             <td><div className="actions" style={{ justifyContent: 'flex-end' }}>
               {terminal && <button className="button" title="Open running terminal" onClick={(event) => { event.stopPropagation(); void selectRun(run.run_id).then(() => navigate('/execution')).catch((cause) => setMessage(cause instanceof Error ? cause.message : 'Selection failed')) }}><SquareTerminal size={15} /><span className="badge success">{terminal.status}</span></button>}
+              {run.branch_name && run.worktree_path && !run.merged_back && <button className="button icon-button" title="Merge run branch back" onClick={(event) => { event.stopPropagation(); void mergeBack(run) }}><GitMerge size={15} /></button>}
               {!run.active && <button className="button" title="Make selected run authoritative" onClick={(event) => { event.stopPropagation(); void runAction('switch', run) }}>Select</button>}
               {run.blocked_by.includes('user_paused') && <button className="button icon-button" title="Resume run" onClick={(event) => { event.stopPropagation(); void runAction('resume', run) }}><Play size={15} /></button>}
               {!run.blocked_by.includes('user_paused') && <button className="button icon-button" title="Pause run" onClick={(event) => { event.stopPropagation(); void runAction('pause', run) }}><Pause size={15} /></button>}
