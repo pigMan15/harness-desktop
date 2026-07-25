@@ -644,11 +644,9 @@ def _gate_evaluate(
     if permission_error:
         raise PermissionError(f"{permission_error}: {gate_id} requires verifier")
 
-    phase_dir = (project_root / state.get("phase_dir", "")).resolve()
-    try:
-        phase_dir.relative_to(project_root.resolve())
-    except ValueError as exc:
-        raise ValueError("PHASE_DIR_ESCAPE") from exc
+    phase_dir = _get_phase_dir(project_root, run_id)
+    if not phase_dir:
+        raise ValueError("PHASE_DIR_MISSING")
 
     workflow = load_workflow(project_root)
     result = evaluate_gate(
@@ -801,6 +799,17 @@ def _get_phase_dir(project_root: Path, run_id: str):
             phase_dir.relative_to(project_root.resolve())
         except ValueError as exc:
             raise ValueError("PHASE_DIR_ESCAPE") from exc
+        worktree_path = state.get("worktree_path")
+        if worktree_path:
+            worktree_phase_dir = (Path(str(worktree_path)) / pd).resolve()
+            try:
+                worktree_phase_dir.relative_to(Path(str(worktree_path)).resolve())
+            except ValueError as exc:
+                raise ValueError("PHASE_DIR_ESCAPE") from exc
+            if worktree_phase_dir.is_dir() and (
+                not phase_dir.is_dir() or not any(phase_dir.iterdir())
+            ):
+                return worktree_phase_dir
         return phase_dir
     return None
 

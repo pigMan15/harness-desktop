@@ -18,6 +18,10 @@ def artifact_project(tmp_path, monkeypatch):
     db_path = tmp_path / "artifacts.db"
     monkeypatch.setattr("harness_runtime.persistence.database.DEFAULT_DB_PATH", db_path)
     monkeypatch.setattr("harness_runtime.projects.service.get_db", lambda: get_db(db_path))
+    monkeypatch.setattr(
+        "harness_runtime.projects.service._stage_harness_files",
+        lambda _root: {"status": "skipped", "reason": "TEST", "files": []},
+    )
     init_db(db_path)
     source = Path(__file__).resolve().parents[3] / "fixtures/harness-v1/valid-project"
     root = tmp_path / "artifact-project"
@@ -46,3 +50,37 @@ def test_list_and_read_are_bound_to_requested_run(artifact_project):
 
     assert [item["name"] for item in listed] == ["result.md"]
     assert result["content"] == "from B"
+
+
+def test_artifacts_fall_back_to_worktree_phase_dir(artifact_project):
+    project_id = artifact_project["projectId"]
+    from harness_runtime.projects.service import resolve_project_root
+
+    root = resolve_project_root(project_id)
+    template = json.loads((root / ".harness/state.json").read_text(encoding="utf-8"))
+    worktree = root.parent / "artifact-worktree"
+    worktree.mkdir()
+    state = {
+        **template,
+        "run_id": "artifact-worktree-run",
+        "phase_dir": ".harness/phases/artifact-worktree-run",
+        "worktree_path": str(worktree),
+    }
+    (root / state["phase_dir"]).mkdir(parents=True)
+    worktree_phase = worktree / state["phase_dir"]
+    worktree_phase.mkdir(parents=True)
+    (worktree_phase / "result.md").write_text("from worktree", encoding="utf-8")
+    write_run_state(root, "artifact-worktree-run", state, update_projection=False)
+
+    listed = asyncio.run(
+        _dispatch("artifact.list", {"projectId": project_id, "runId": "artifact-worktree-run"})
+    )
+    result = asyncio.run(
+        _dispatch(
+            "artifact.read",
+            {"projectId": project_id, "runId": "artifact-worktree-run", "filename": "result.md"},
+        )
+    )
+
+    assert [item["name"] for item in listed] == ["result.md"]
+    assert result["content"] == "from worktree"

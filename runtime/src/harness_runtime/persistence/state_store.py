@@ -47,7 +47,72 @@ def read_run_state(project_root: Path, run_id: str) -> tuple[dict, str]:
     content = atomic_read(_run_state_path(project_root, run_id))
     if not content:
         return {}, ""
-    return json.loads(content), _revision(content)
+    state = json.loads(content)
+    worktree_content = _read_worktree_run_content(state, run_id)
+    if worktree_content:
+        worktree_state = json.loads(worktree_content)
+        if worktree_state.get("run_id") == run_id and _worktree_state_is_newer(state, worktree_state):
+            for key in ("branch_name", "worktree_path", "worktree_status"):
+                if key not in worktree_state and state.get(key):
+                    worktree_state[key] = state[key]
+            worktree_content = json.dumps(worktree_state, ensure_ascii=False, indent=2) + "\n"
+            _write_reconciled_run_state(project_root, run_id, worktree_content)
+            return worktree_state, _revision(worktree_content)
+    return state, _revision(content)
+
+
+def _read_worktree_run_content(state: dict, run_id: str) -> str:
+    worktree_path = state.get("worktree_path")
+    if not worktree_path:
+        return ""
+    worktree_root = Path(str(worktree_path))
+    candidates = [
+        worktree_root / ".harness" / "runs" / run_id / "state.json",
+        worktree_root / ".harness" / "state.json",
+    ]
+    for candidate in candidates:
+        content = atomic_read(candidate)
+        if content:
+            return content
+    return ""
+
+
+def _worktree_state_is_newer(authoritative: dict, candidate: dict) -> bool:
+    if candidate == authoritative:
+        return False
+    candidate_time = _parse_time(candidate.get("last_updated"))
+    authoritative_time = _parse_time(authoritative.get("last_updated"))
+    if candidate_time and authoritative_time:
+        return candidate_time > authoritative_time
+    if candidate_time and not authoritative_time:
+        return True
+    candidate_completed = len(candidate.get("completed_nodes", []) or [])
+    authoritative_completed = len(authoritative.get("completed_nodes", []) or [])
+    if candidate_completed != authoritative_completed:
+        return candidate_completed > authoritative_completed
+    terminal_states = {"DONE", "BLOCKED"}
+    return candidate.get("status") in terminal_states and candidate.get("status") != authoritative.get("status")
+
+
+def _parse_time(value: object) -> datetime | None:
+    if not isinstance(value, str) or not value:
+        return None
+    try:
+        return datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+
+
+def _write_reconciled_run_state(project_root: Path, run_id: str, content: str) -> str:
+    path = _run_state_path(project_root, run_id)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    revision = atomic_write(path, content)
+    projection_content = atomic_read(project_root / ".harness" / "state.json")
+    if projection_content:
+        projection = json.loads(projection_content)
+        if projection.get("run_id") == run_id:
+            atomic_write(project_root / ".harness" / "state.json", content)
+    return revision
 
 
 def write_selected_run_projection(

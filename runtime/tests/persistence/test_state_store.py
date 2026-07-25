@@ -18,7 +18,7 @@ import pytest
 
 from harness_runtime.persistence.atomic_files import atomic_read, atomic_write
 from harness_runtime.persistence.project_lock import ProjectLock
-from harness_runtime.persistence.state_store import read_state, write_state
+from harness_runtime.persistence.state_store import read_run_state, read_state, write_state
 
 
 @pytest.fixture
@@ -174,3 +174,53 @@ class TestStateStore:
 
         state, _ = read_state(project_dir)
         assert "DEVELOPMENT" in state["completed_nodes"]
+
+    def test_read_run_state_reconciles_newer_worktree_state(self, project_dir, sample_state, tmp_path):
+        worktree = tmp_path / "run-worktree"
+        worktree.mkdir()
+        main_state = {
+            **sample_state,
+            "run_id": "worktree-sync",
+            "status": "ROUTING",
+            "current_node": "INTAKE",
+            "completed_nodes": [],
+            "last_updated": "2026-07-25T01:00:00+00:00",
+            "branch_name": "codex/worktree-sync",
+            "worktree_path": str(worktree),
+            "worktree_status": "ready",
+        }
+        main_snapshot = project_dir / ".harness" / "runs" / "worktree-sync" / "state.json"
+        main_snapshot.parent.mkdir(parents=True)
+        main_snapshot.write_text(
+            json.dumps(main_state, ensure_ascii=False, indent=2) + "\n",
+            encoding="utf-8",
+        )
+        (project_dir / ".harness" / "state.json").write_text(
+            json.dumps(main_state, ensure_ascii=False, indent=2) + "\n",
+            encoding="utf-8",
+        )
+
+        worktree_state = {
+            **main_state,
+            "status": "DONE",
+            "current_node": "KNOWLEDGE_PROMOTION",
+            "completed_nodes": ["INTAKE", "KNOWLEDGE_PROMOTION"],
+            "last_updated": "2026-07-25T02:00:00+00:00",
+        }
+        del worktree_state["worktree_path"]
+        target = worktree / ".harness" / "runs" / "worktree-sync"
+        target.mkdir(parents=True)
+        (target / "state.json").write_text(
+            json.dumps(worktree_state, ensure_ascii=False, indent=2) + "\n",
+            encoding="utf-8",
+        )
+
+        reconciled, _ = read_run_state(project_dir, "worktree-sync")
+        projected, _ = read_state(project_dir)
+
+        assert reconciled["status"] == "DONE"
+        assert reconciled["worktree_path"] == str(worktree)
+        assert projected["status"] == "DONE"
+        assert json.loads(
+            (project_dir / ".harness" / "runs" / "worktree-sync" / "state.json").read_text(encoding="utf-8")
+        )["status"] == "DONE"
