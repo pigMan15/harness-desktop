@@ -211,6 +211,8 @@ async def _dispatch(method: str, params: dict) -> Any:
         return _knowledge_repo_codex_poll(project_id, params.get("sessionId", ""))
     if method == "knowledge.repo.codex.respond":
         return await _knowledge_repo_codex_respond(project_id, params.get("sessionId", ""), params.get("decision", {}))
+    if method == "knowledge.repo.codex.feedback":
+        return await _knowledge_repo_codex_feedback(project_id, params.get("sessionId", ""), params.get("feedback", ""))
     if method == "knowledge.repo.codex.cancel":
         return await _knowledge_repo_codex_cancel(project_id, params.get("sessionId", ""))
     if method == "knowledge.repo.push":
@@ -924,6 +926,31 @@ async def _knowledge_repo_codex_respond(project_id: str, session_id: str, decisi
     server: CodexAppServer = session["server"]
     await server.respond(int(decision.get("requestId")), decision.get("decision", ""))
     return {"ok": True}
+
+
+async def _knowledge_repo_codex_feedback(project_id: str, session_id: str, feedback: str) -> dict:
+    from ..knowledge.shared_repo import repo_diff
+
+    session = _knowledge_codex_sessions.get(session_id)
+    if not session or session.get("projectId") != project_id:
+        raise ValueError(f"KNOWLEDGE_CODEX_SESSION_NOT_FOUND: {session_id}")
+    user_feedback = str(feedback or "").strip()
+    if not user_feedback:
+        raise ValueError("KNOWLEDGE_CODEX_FEEDBACK_REQUIRED")
+    current_diff = str(repo_diff(project_id).get("diff") or "")
+    if len(current_diff) > 20000:
+        current_diff = current_diff[:20000] + "\n\n[DIFF TRUNCATED]"
+    prompt = (
+        "用户正在审批你刚才对共享知识库本地仓库生成的改动。\n\n"
+        "请根据用户反馈继续修改本地 working tree，不要 commit，不要 push。\n"
+        "修改完成后简要说明你做了什么。\n\n"
+        f"用户反馈：\n{user_feedback}\n\n"
+        f"当前 Git diff：\n{current_diff or '_当前没有可见 diff_'}\n"
+    )
+    server: CodexAppServer = session["server"]
+    session["diffEmitted"] = False
+    await server.send_message(prompt)
+    return {"ok": True, "sessionId": session_id}
 
 
 async def _knowledge_repo_codex_cancel(project_id: str, session_id: str) -> dict:

@@ -20,6 +20,7 @@ function KnowledgeContent(): React.ReactElement {
   const [pendingApproval, setPendingApproval] = useState<KnowledgeLogEntry>()
   const [confirmDangerous, setConfirmDangerous] = useState(false)
   const [dirtyBlocked, setDirtyBlocked] = useState(false)
+  const [codexFeedback, setCodexFeedback] = useState('')
   const [msg, setMsg] = useState('')
   const [msgKind, setMsgKind] = useState<'info' | 'success' | 'error'>('info')
   const timer = useRef<ReturnType<typeof setInterval>>()
@@ -200,6 +201,24 @@ function KnowledgeContent(): React.ReactElement {
     catch (e: any) { showMsg(e.message, 'error') }
   }
 
+  async function sendCodexFeedback() {
+    const feedback = codexFeedback.trim()
+    if (!window.harness || !codexSessionId || !feedback) return
+    setCodexRunning(true)
+    setPendingApproval(undefined)
+    setMsg('')
+    try {
+      const r = await window.harness.sendKnowledgeCodexFeedback(selectedProjectId, codexSessionId, feedback)
+      if (r?.error) throw new Error(String(r.error))
+      setCodexFeedback('')
+      showMsg('Feedback sent to Codex. Waiting for updated diff.', 'info')
+      beginCodexPolling(codexSessionId)
+    } catch (e: any) {
+      setCodexRunning(false)
+      showMsg(e.message, 'error')
+    }
+  }
+
   async function pushRepo() {
     try {
       const r = await window.harness!.pushKnowledgeRepo(selectedProjectId)
@@ -363,6 +382,14 @@ function KnowledgeContent(): React.ReactElement {
             {codexLogs.length > 0 || codexSessionId
               ? <pre className="knowledge-codex-pre">{codexLogs.length === 0 ? 'Waiting for Codex events...' : formatCodexLogs(codexLogs)}</pre>
               : <div className="knowledge-empty-panel">这里展示 Codex 的运行状态、分析输出和审批请求。</div>}
+            {codexSessionId && <div className="knowledge-feedback-box">
+              <label>人工审批/修改意见</label>
+              <textarea value={codexFeedback} onChange={e => setCodexFeedback(e.target.value)} placeholder="例如：不要新建 inbox 草稿，合并到 retrieval-playbook.md，并保留原有章节结构。" />
+              <div className="knowledge-feedback-actions">
+                <button className="button primary" onClick={() => void sendCodexFeedback()} disabled={codexRunning || !codexFeedback.trim()}>Send feedback</button>
+                <span>认可结果则点击左侧 Push via App；不认可就在这里要求 Codex 继续修改。</span>
+              </div>
+            </div>}
           </section>
         </aside>
       </div>

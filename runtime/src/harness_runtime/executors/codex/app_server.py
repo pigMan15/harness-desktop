@@ -96,6 +96,22 @@ class CodexAppServer:
         if not self.turn_id:
             raise RuntimeError("CODEX_TURN_START_MISSING_ID")
 
+    async def send_message(self, prompt: str) -> None:
+        """Submit a follow-up turn to the existing thread."""
+        if not self.thread_id or self._closed:
+            raise RuntimeError("CODEX_THREAD_NOT_ACTIVE")
+        turn_result = await self._request(
+            "turn/start",
+            {
+                "threadId": self.thread_id,
+                "input": [{"type": "text", "text": prompt}],
+            },
+        )
+        self.turn_id = turn_result.get("turn", {}).get("id", "")
+        self._terminal_event_sent = False
+        if not self.turn_id:
+            raise RuntimeError("CODEX_TURN_START_MISSING_ID")
+
     def poll_events(self) -> list[dict[str, Any]]:
         """Drain currently available events without blocking an HTTP poll."""
         events, self._events = self._events, []

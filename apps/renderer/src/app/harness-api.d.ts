@@ -105,6 +105,7 @@ export interface HarnessApi {
   getActiveKnowledgeCodexSynthesis: (projectId: string) => Promise<ApiObject>
   pollKnowledgeCodexSynthesis: (projectId: string, sessionId: string) => Promise<unknown>
   respondKnowledgeCodexSynthesis: (projectId: string, sessionId: string, decision: ExecutionDecision) => Promise<unknown>
+  sendKnowledgeCodexFeedback: (projectId: string, sessionId: string, feedback: string) => Promise<ApiObject>
   cancelKnowledgeCodexSynthesis: (projectId: string, sessionId: string) => Promise<ApiObject>
   pushKnowledgeRepo: (projectId: string) => Promise<ApiObject>
   probeExecution: (projectId: string) => Promise<ApiObject>

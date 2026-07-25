@@ -62,6 +62,7 @@ const harnessApi: HarnessApi = {
   getActiveKnowledgeCodexSynthesis: (p: string) => ipcRenderer.invoke('knowledge:repo-codex-active',p),
   pollKnowledgeCodexSynthesis: (p: string,s: string) => ipcRenderer.invoke('knowledge:repo-codex-poll',p,s),
   respondKnowledgeCodexSynthesis: (p: string,s: string,d) => ipcRenderer.invoke('knowledge:repo-codex-respond',p,s,d),
+  sendKnowledgeCodexFeedback: (p: string,s: string,f: string) => ipcRenderer.invoke('knowledge:repo-codex-feedback',p,s,f),
   cancelKnowledgeCodexSynthesis: (p: string,s: string) => ipcRenderer.invoke('knowledge:repo-codex-cancel',p,s),
   pushKnowledgeRepo: (p: string) => ipcRenderer.invoke('knowledge:repo-push',p),
   probeExecution: (p: string) => ipcRenderer.invoke('execution:probe',p),

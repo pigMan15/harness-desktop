@@ -283,6 +283,8 @@ app.whenReady().then(() => {
     runtimeCall('knowledge.repo.codex.poll', { projectId, sessionId }))
   ipcMain.handle('knowledge:repo-codex-respond', async (_e, projectId: string, sessionId: string, decision: unknown) =>
     runtimeCall('knowledge.repo.codex.respond', { projectId, sessionId, decision }))
+  ipcMain.handle('knowledge:repo-codex-feedback', async (_e, projectId: string, sessionId: string, feedback: string) =>
+    runtimeCall('knowledge.repo.codex.feedback', { projectId, sessionId, feedback }))
   ipcMain.handle('knowledge:repo-codex-cancel', async (_e, projectId: string, sessionId: string) =>
     runtimeCall('knowledge.repo.codex.cancel', { projectId, sessionId }))
   ipcMain.handle('knowledge:repo-push', async (_e, projectId: string) =>
