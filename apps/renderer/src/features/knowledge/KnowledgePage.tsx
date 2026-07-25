@@ -213,17 +213,17 @@ function KnowledgeContent(): React.ReactElement {
       flushOutput()
       if (entry.type === 'tool_call') {
         const itemType = typeof entry.params?.type === 'string' ? entry.params.type : entry.tool || 'tool'
-        lines.push(`• ${itemType}`)
+        lines.push(`- ${itemType}`)
       } else if (entry.type === 'approval_required') {
-        lines.push(`• Approval required: ${entry.message || entry.category || 'Codex requests approval'}`)
+        lines.push(`- Approval required: ${entry.message || entry.category || 'Codex requests approval'}`)
       } else if (entry.type === 'preview') {
-        lines.push('• Preview diff is ready.')
+        lines.push('- Preview diff is ready.')
       } else if (entry.type === 'exited') {
-        lines.push('• Codex synthesis finished.')
+        lines.push('- Codex synthesis finished.')
       } else if (entry.error) {
-        lines.push(`• Error: ${entry.error}`)
+        lines.push(`- Error: ${entry.error}`)
       } else if (entry.message) {
-        lines.push(`• ${entry.message}`)
+        lines.push(`- ${entry.message}`)
       }
     }
     flushOutput()
@@ -236,57 +236,36 @@ function KnowledgeContent(): React.ReactElement {
   return (
     <div className="knowledge-page">
       <h2>Knowledge Promotion</h2>
-      <section className="knowledge-repo-panel">
-        <div>
-          <h3>Shared Knowledge Repository</h3>
-          <p>Pull a shared Git knowledge base locally, generate a Codex-ready update draft from accepted records, preview the diff, then push here or push manually.</p>
-        </div>
-        <div className="knowledge-repo-form">
-          <label>Local path<input value={repoForm.localPath} onBlur={() => void inspectLocalPath()} onChange={e => setRepoForm({ ...repoForm, localPath: e.target.value })} placeholder="G:\\Project\\ai\\shared-knowledge" /></label>
-          <label>Remote URL<input value={repoForm.remoteUrl} onChange={e => setRepoForm({ ...repoForm, remoteUrl: e.target.value })} placeholder="https://github.com/org/knowledge.git" /></label>
-          <label>Branch<input value={repoForm.branch} onChange={e => setRepoForm({ ...repoForm, branch: e.target.value })} placeholder="main" /></label>
-        </div>
-        <div className="knowledge-repo-actions">
-          <button className="button" onClick={configureRepo}>Save</button>
-          <button className="button" onClick={pullRepo} disabled={!repo.configured}>Pull / Clone</button>
-          <button className="button primary" onClick={() => void runCodexSynthesis(false)} disabled={codexRunning || !repo.configured || selectedIds.length === 0}>Run Codex Synthesis</button>
-          {dirtyBlocked && <button className="button danger" onClick={() => void runCodexSynthesis(true)} disabled={codexRunning || !repo.configured || selectedIds.length === 0}>Run Anyway</button>}
-          <button className="button" onClick={synthesizeRepo} disabled={codexRunning || !repo.configured || selectedIds.length === 0}>Prepare Draft</button>
-          <button className="button danger" onClick={cancelCodex} disabled={!codexRunning}>Stop Codex</button>
-          <button className="button success" onClick={pushRepo} disabled={!repo.configured || !repo.dirty}>Push via App</button>
-        </div>
-        {repo.configured && <div className="knowledge-repo-status">
-          <span className={`knowledge-tag ${repo.isGitRepo ? 'tag-ok' : 'tag-warn'}`}>{repo.isGitRepo ? 'Git Ready' : 'Not a Git repo'}</span>
-          {repo.branch && <span className="knowledge-tag tag-run">{repo.branch}</span>}
-          {repo.dirty && <span className="knowledge-tag tag-warn">Local changes</span>}
-          {repo.lastCommit && <span className="knowledge-tag tag-muted">{repo.lastCommit}</span>}
-          {Array.isArray(repo.rules) && repo.rules.map((rule: any) => <span key={rule.path} className="knowledge-tag tag-rule">{rule.path}</span>)}
-        </div>}
-        {preview?.diff && <div className="knowledge-preview">
-          <div className="knowledge-preview-head">
-            <strong>Local preview diff</strong>
-            {preview.manualPushCommand && <code>{preview.manualPushCommand}</code>}
-          </div>
-          <pre>{preview.diff}</pre>
-        </div>}
-        {(codexLogs.length > 0 || codexSessionId) && <div className="knowledge-codex-panel">
-          <div className="knowledge-preview-head">
-            <strong>Codex synthesis</strong>
-            {codexSessionId && <code>{codexSessionId}</code>}
-          </div>
-          {pendingApproval && <div className={`notice ${confirmDangerous ? 'error' : ''}`}>
-            <strong>{confirmDangerous ? 'SECOND CONFIRMATION REQUIRED' : `${pendingApproval.category || 'external'} approval`}</strong>
-            <div style={{ margin: '6px 0' }}>{pendingApproval.message}</div>
-            <div className="actions">
-              <button className="button primary" onClick={() => void respondCodex('allow_once')}>{confirmDangerous ? 'Confirm allow' : 'Allow once'}</button>
-              <button className="button" onClick={() => void respondCodex('allow_session')}>Allow session</button>
-              <button className="button danger" onClick={() => void respondCodex('deny')}>Deny</button>
+      <div className="knowledge-workbench">
+        <main className="knowledge-main">
+          <section className="knowledge-repo-panel">
+            <div>
+              <h3>Shared Knowledge Repository</h3>
+              <p>Pull a shared Git knowledge base locally, run Codex synthesis from accepted records, preview the diff, then push here or push manually.</p>
             </div>
-          </div>}
-          <pre>{codexLogs.length === 0 ? 'Waiting for Codex events...' : formatCodexLogs(codexLogs)}</pre>
-        </div>}
-      </section>
-      <div className="knowledge-tabs">
+            <div className="knowledge-repo-form">
+              <label>Local path<input value={repoForm.localPath} onBlur={() => void inspectLocalPath()} onChange={e => setRepoForm({ ...repoForm, localPath: e.target.value })} placeholder="G:\\Project\\ai\\shared-knowledge" /></label>
+              <label>Remote URL<input value={repoForm.remoteUrl} onChange={e => setRepoForm({ ...repoForm, remoteUrl: e.target.value })} placeholder="https://github.com/org/knowledge.git" /></label>
+              <label>Branch<input value={repoForm.branch} onChange={e => setRepoForm({ ...repoForm, branch: e.target.value })} placeholder="main" /></label>
+            </div>
+            <div className="knowledge-repo-actions">
+              <button className="button" onClick={configureRepo}>Save</button>
+              <button className="button" onClick={pullRepo} disabled={!repo.configured}>Pull / Clone</button>
+              <button className="button primary" onClick={() => void runCodexSynthesis(false)} disabled={codexRunning || !repo.configured || selectedIds.length === 0}>Run Codex Synthesis</button>
+              {dirtyBlocked && <button className="button danger" onClick={() => void runCodexSynthesis(true)} disabled={codexRunning || !repo.configured || selectedIds.length === 0}>Run Anyway</button>}
+              <button className="button" onClick={synthesizeRepo} disabled={codexRunning || !repo.configured || selectedIds.length === 0}>Prepare Draft</button>
+              <button className="button danger" onClick={cancelCodex} disabled={!codexRunning}>Stop Codex</button>
+              <button className="button success" onClick={pushRepo} disabled={!repo.configured || !repo.dirty}>Push via App</button>
+            </div>
+            {repo.configured && <div className="knowledge-repo-status">
+              <span className={`knowledge-tag ${repo.isGitRepo ? 'tag-ok' : 'tag-warn'}`}>{repo.isGitRepo ? 'Git Ready' : 'Not a Git repo'}</span>
+              {repo.branch && <span className="knowledge-tag tag-run">{repo.branch}</span>}
+              {repo.dirty && <span className="knowledge-tag tag-warn">Local changes</span>}
+              {repo.lastCommit && <span className="knowledge-tag tag-muted">{repo.lastCommit}</span>}
+              {Array.isArray(repo.rules) && repo.rules.map((rule: any) => <span key={rule.path} className="knowledge-tag tag-rule">{rule.path}</span>)}
+            </div>}
+          </section>
+          <div className="knowledge-tabs">
         {(['draft', 'accepted', 'rejected'] as const).map(t => (
           <button key={t} onClick={() => setTab(t)} className={tab === t ? 'active' : ''}>{t === 'draft' ? 'Pending' : t === 'accepted' ? 'Accepted' : 'Rejected'}</button>
         ))}
@@ -325,6 +304,37 @@ function KnowledgeContent(): React.ReactElement {
           </div>}
         </article>
       ))}
+      </div>
+        </main>
+        <aside className="knowledge-executor-rail">
+          <section className="knowledge-executor-card">
+            <div className="knowledge-preview-head">
+              <strong>Local preview diff</strong>
+              {preview?.manualPushCommand && <code>{preview.manualPushCommand}</code>}
+            </div>
+            {preview?.diff
+              ? <pre className="knowledge-diff-pre">{preview.diff}</pre>
+              : <div className="knowledge-empty-panel">Codex 完成后，这里展示共享知识库本地仓库的 Git diff。</div>}
+          </section>
+          <section className="knowledge-executor-card">
+            <div className="knowledge-preview-head">
+              <strong>Codex synthesis</strong>
+              {codexSessionId && <code>{codexSessionId}</code>}
+            </div>
+            {pendingApproval && <div className={`notice ${confirmDangerous ? 'error' : ''}`}>
+              <strong>{confirmDangerous ? 'SECOND CONFIRMATION REQUIRED' : `${pendingApproval.category || 'external'} approval`}</strong>
+              <div style={{ margin: '6px 0' }}>{pendingApproval.message}</div>
+              <div className="actions">
+                <button className="button primary" onClick={() => void respondCodex('allow_once')}>{confirmDangerous ? 'Confirm allow' : 'Allow once'}</button>
+                <button className="button" onClick={() => void respondCodex('allow_session')}>Allow session</button>
+                <button className="button danger" onClick={() => void respondCodex('deny')}>Deny</button>
+              </div>
+            </div>}
+            {codexLogs.length > 0 || codexSessionId
+              ? <pre className="knowledge-codex-pre">{codexLogs.length === 0 ? 'Waiting for Codex events...' : formatCodexLogs(codexLogs)}</pre>
+              : <div className="knowledge-empty-panel">这里展示 Codex 的运行状态、分析输出和审批请求。</div>}
+          </section>
+        </aside>
       </div>
     </div>
   )
