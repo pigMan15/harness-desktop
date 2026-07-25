@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react'
 import { ProjectRequired, useWorkspace } from '../layout/WorkspaceContext'
 import { MarkdownPreview } from '../artifacts/ArtifactsPage'
 
-interface KnowledgeLogEntry { type: string; sequence: number; content?: string; error?: unknown; tool?: string; params?: Record<string, unknown>; message?: string; category?: string; requestId?: number; diff?: string; repo?: any; manualPushCommand?: string }
+interface KnowledgeLogEntry { type: string; sequence: number; content?: string; error?: unknown; tool?: string; params?: Record<string, unknown>; message?: string; category?: string; requestId?: number; diff?: string; repo?: any; candidateIds?: number[]; manualPushCommand?: string }
 const DANGEROUS = new Set(['deploy', 'delete', 'dangerous_git'])
 const ANSI_ESCAPE = /\u001B\[[0-?]*[ -/]*[@-~]/g
 
@@ -42,6 +42,7 @@ function KnowledgeContent(): React.ReactElement {
   const [repo, setRepo] = useState<any>({ configured: false })
   const [repoForm, setRepoForm] = useState({ localPath: '', remoteUrl: '', branch: '' })
   const [preview, setPreview] = useState<any>(null)
+  const [pushCandidateIds, setPushCandidateIds] = useState<number[]>([])
   const [codexLogs, setCodexLogs] = useState<KnowledgeLogEntry[]>([])
   const [codexRunning, setCodexRunning] = useState(false)
   const [codexSessionId, setCodexSessionId] = useState('')
@@ -158,6 +159,7 @@ function KnowledgeContent(): React.ReactElement {
       else {
         setPreview(r)
         setRepo(r.repo || repo)
+        setPushCandidateIds(Array.isArray(r.candidateIds) ? r.candidateIds.map(Number) : [...selectedIds])
         showMsg(`Generated local preview for ${selectedIds.length} accepted candidate(s).`, 'success')
       }
     } catch (e: any) { showMsg(e.message, 'error') }
@@ -173,6 +175,7 @@ function KnowledgeContent(): React.ReactElement {
     setCodexLogs([])
     setPendingApprovals([])
     setPreview(null)
+    setPushCandidateIds([])
     setMsg('')
     setDirtyBlocked(false)
     setCodexRunning(true)
@@ -211,6 +214,7 @@ function KnowledgeContent(): React.ReactElement {
       if (previewEvent) {
         setPreview(previewEvent)
         setRepo(previewEvent.repo || repo)
+        if (Array.isArray(previewEvent.candidateIds)) setPushCandidateIds(previewEvent.candidateIds.map(Number))
       }
       if (events.some(entry => entry.type === 'exited' || entry.type === 'error')) {
         setCodexRunning(false)
@@ -267,11 +271,16 @@ function KnowledgeContent(): React.ReactElement {
 
   async function pushRepo() {
     try {
-      const r = await window.harness!.pushKnowledgeRepo(selectedProjectId)
+      const candidateIds = [...pushCandidateIds]
+      const r = await window.harness!.pushKnowledgeRepo(selectedProjectId, candidateIds)
       if (r?.error) showMsg(r.error, 'error')
       else {
         setRepo(r)
-        showMsg('Shared knowledge repository pushed.', 'success')
+        const refreshed = await window.harness!.listKnowledge(selectedProjectId, tab)
+        if (Array.isArray(refreshed)) setCandidates(refreshed)
+        const markedCount = Array.isArray(r.pushedCandidateIds) ? r.pushedCandidateIds.length : 0
+        setPushCandidateIds([])
+        showMsg(`Shared knowledge repository pushed${markedCount > 0 ? `; marked ${markedCount} candidate(s).` : '.'}`, 'success')
       }
     } catch (e: any) { showMsg(e.message, 'error') }
   }
@@ -352,7 +361,7 @@ function KnowledgeContent(): React.ReactElement {
               {dirtyBlocked && <button className="button danger" onClick={() => void runCodexSynthesis(true)} disabled={codexRunning || !repo.configured || selectedIds.length === 0}>Run Anyway</button>}
               <button className="button" onClick={synthesizeRepo} disabled={codexRunning || !repo.configured || selectedIds.length === 0}>Prepare Draft</button>
               <button className="button danger" onClick={cancelCodex} disabled={!codexRunning}>Stop Codex</button>
-              <button className="button success" onClick={pushRepo} disabled={!repo.configured || !repo.dirty}>Push via App</button>
+              <button className="button success" onClick={pushRepo} disabled={codexRunning || !repo.configured || !repo.dirty}>Push via App</button>
             </div>
             {repo.configured && <div className="knowledge-repo-status">
               <span className={`knowledge-tag ${repo.isGitRepo ? 'tag-ok' : 'tag-warn'}`}>{repo.isGitRepo ? 'Git Ready' : 'Not a Git repo'}</span>
@@ -379,6 +388,7 @@ function KnowledgeContent(): React.ReactElement {
               <div className="knowledge-keywords">
                 <span className="knowledge-tag tag-type">{TYPE_LABELS[c.type] || c.type}</span>
                 {c.run_id && <span className="knowledge-tag tag-run">Run {c.run_id}</span>}
+                {Number(c.push_count || 0) > 0 && <span className="knowledge-tag tag-ok" title={c.last_pushed_at ? `Last pushed: ${c.last_pushed_at}` : undefined}>已推送{Number(c.push_count) > 1 ? ` ×${c.push_count}` : ''}</span>}
               </div>
             </div>
             <span className={`knowledge-status ${c.status}`}>{STATUS_LABELS[c.status] || c.status}</span>

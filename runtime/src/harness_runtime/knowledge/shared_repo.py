@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import Iterable
 
 from ..persistence.database import get_db
-from .service import list_candidates_with_content
+from .service import list_candidates_with_content, mark_candidates_pushed
 
 
 RULE_FILES = (
@@ -128,7 +128,7 @@ def pull_repo(project_id: str) -> dict:
     return repo_status(project_id)
 
 
-def push_repo(project_id: str) -> dict:
+def push_repo(project_id: str, candidate_ids: Iterable[int] = ()) -> dict:
     config = _require_config(project_id)
     path = Path(config["localPath"])
     _require_git_repo(path)
@@ -137,8 +137,11 @@ def push_repo(project_id: str) -> dict:
     if staged["returncode"] == 1:
         _git(path, "commit", "-m", "Promote Harness knowledge")
     result = _git(path, "push")
+    promotion = mark_candidates_pushed(project_id, list(candidate_ids))
     status = repo_status(project_id)
     status["pushOutput"] = result["stdout"] or result["stderr"]
+    status["pushedCandidateIds"] = promotion["candidateIds"]
+    status["pushedAt"] = promotion["pushedAt"]
     return status
 
 
@@ -173,6 +176,7 @@ def synthesize_preview(project_id: str, project_root: Path, candidate_ids: Itera
     return {
         "ok": True,
         "repo": status,
+        "candidateIds": sorted(selected_ids),
         "files": [relative],
         "diff": diff,
         "manualPushCommand": f"git -C \"{path}\" add \"{relative}\" && git -C \"{path}\" commit -m \"Promote Harness knowledge\" && git -C \"{path}\" push",
@@ -207,6 +211,7 @@ def synthesis_context(
         "prompt": _render_codex_prompt(project_id, path, selected),
         "rules": _discover_rules(path),
         "candidateCount": len(selected),
+        "candidateIds": sorted(selected_ids),
     }
 
 

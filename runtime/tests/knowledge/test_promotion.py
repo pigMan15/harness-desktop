@@ -5,6 +5,7 @@ import pytest
 from harness_runtime.knowledge.service import (
     list_candidates,
     list_candidates_with_content,
+    mark_candidates_pushed,
     promote_candidate,
     review_candidate,
 )
@@ -67,3 +68,17 @@ class TestPromotion:
 
         assert drafts == []
         assert len(accepted) == 2
+
+    def test_successful_push_marker_keeps_candidate_accepted_and_counts_repeats(self):
+        candidate_id = promote_candidate(PROJECT_ID, RUN_ID, "Reusable Pattern", "summary", "source")
+        review_candidate(candidate_id, "accepted")
+
+        first = mark_candidates_pushed(PROJECT_ID, [candidate_id])
+        second = mark_candidates_pushed(PROJECT_ID, [candidate_id])
+        candidate = next(item for item in list_candidates(PROJECT_ID, status="accepted") if item["id"] == candidate_id)
+
+        assert first["candidateIds"] == [candidate_id]
+        assert second["candidateIds"] == [candidate_id]
+        assert candidate["status"] == "accepted"
+        assert candidate["push_count"] == 2
+        assert candidate["last_pushed_at"]

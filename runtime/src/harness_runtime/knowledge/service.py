@@ -26,9 +26,16 @@ def _ensure_table():
             status TEXT NOT NULL DEFAULT 'draft',
             reviewer TEXT,
             reviewed_at TEXT,
+            push_count INTEGER NOT NULL DEFAULT 0,
+            last_pushed_at TEXT,
             created_at TEXT NOT NULL DEFAULT (datetime('now'))
         )
     """)
+    existing = {row[1] for row in db.execute("PRAGMA table_info(knowledge_candidates)")}
+    if "push_count" not in existing:
+        db.execute("ALTER TABLE knowledge_candidates ADD COLUMN push_count INTEGER NOT NULL DEFAULT 0")
+    if "last_pushed_at" not in existing:
+        db.execute("ALTER TABLE knowledge_candidates ADD COLUMN last_pushed_at TEXT")
     db.commit()
 
 
@@ -209,3 +216,30 @@ def review_candidate(candidate_id: int, decision: str, reviewer: str = "user") -
     )
     db.commit()
     return {"id": candidate_id, "status": decision, "reviewer": reviewer, "reviewed_at": now}
+
+
+def mark_candidates_pushed(project_id: str, candidate_ids: list[int]) -> dict:
+    """Record successful app pushes without changing accepted review status."""
+    _ensure_table()
+    selected_ids = sorted({int(candidate_id) for candidate_id in candidate_ids})
+    if not selected_ids:
+        return {"candidateIds": [], "pushedAt": None}
+    db = get_db()
+    now = datetime.now(timezone.utc).isoformat()
+    marked_ids: list[int] = []
+    for candidate_id in selected_ids:
+        row = db.execute(
+            "SELECT * FROM knowledge_candidates WHERE id = ? AND project_id = ? AND status = 'accepted'",
+            (candidate_id, project_id),
+        ).fetchone()
+        if not row:
+            continue
+        db.execute(
+            """UPDATE knowledge_candidates
+               SET push_count = COALESCE(push_count, 0) + 1, last_pushed_at = ?
+               WHERE project_id = ? AND run_id = ? AND type = ? AND title = ? AND summary = ? AND status = 'accepted'""",
+            (now, row["project_id"], row["run_id"], row["type"], row["title"], row["summary"]),
+        )
+        marked_ids.append(candidate_id)
+    db.commit()
+    return {"candidateIds": marked_ids, "pushedAt": now if marked_ids else None}

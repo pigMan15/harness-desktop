@@ -287,8 +287,8 @@ app.whenReady().then(() => {
     runtimeCall('knowledge.repo.codex.feedback', { projectId, sessionId, feedback }))
   ipcMain.handle('knowledge:repo-codex-cancel', async (_e, projectId: string, sessionId: string) =>
     runtimeCall('knowledge.repo.codex.cancel', { projectId, sessionId }))
-  ipcMain.handle('knowledge:repo-push', async (_e, projectId: string) =>
-    runtimeCall('knowledge.repo.push', { projectId }))
+  ipcMain.handle('knowledge:repo-push', async (_e, projectId: string, candidateIds: number[]) =>
+    runtimeCall('knowledge.repo.push', { projectId, candidateIds }))
 
   // ── IPC: Execution ──
   ipcMain.handle('execution:probe', async (_e, projectId: string) =>

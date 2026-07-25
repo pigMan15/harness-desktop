@@ -216,7 +216,7 @@ async def _dispatch(method: str, params: dict) -> Any:
     if method == "knowledge.repo.codex.cancel":
         return await _knowledge_repo_codex_cancel(project_id, params.get("sessionId", ""))
     if method == "knowledge.repo.push":
-        return _knowledge_repo_push(project_id)
+        return _knowledge_repo_push(project_id, params.get("candidateIds", []))
     if method == "execution.probe":
         return await _execution_probe()
     if method == "execution.start":
@@ -877,6 +877,7 @@ async def _knowledge_repo_codex_start(
         "projectId": project_id,
         "repoPath": context["repoPath"],
         "diffEmitted": False,
+        "candidateIds": context["candidateIds"],
     }
     return {
         "sessionId": session_id,
@@ -884,6 +885,7 @@ async def _knowledge_repo_codex_start(
         "threadId": server.thread_id,
         "turnId": server.turn_id,
         "candidateCount": context["candidateCount"],
+        "candidateIds": context["candidateIds"],
         "rules": context["rules"],
     }
 
@@ -899,6 +901,7 @@ def _knowledge_repo_codex_active(project_id: str) -> dict:
                 "threadId": server.thread_id,
                 "turnId": server.turn_id,
                 "approvals": server.pending_approvals(),
+                "candidateIds": session.get("candidateIds", []),
             }
     return {"active": False}
 
@@ -917,7 +920,7 @@ def _knowledge_repo_codex_poll(project_id: str, session_id: str) -> list[dict]:
     ):
         session["diffEmitted"] = True
         preview = repo_diff(project_id)
-        events.append({"type": "preview", "sequence": 10_000_000, **preview})
+        events.append({"type": "preview", "sequence": 10_000_000, "candidateIds": session.get("candidateIds", []), **preview})
     return events
 
 
@@ -965,9 +968,9 @@ async def _knowledge_repo_codex_cancel(project_id: str, session_id: str) -> dict
     return {"ok": True}
 
 
-def _knowledge_repo_push(project_id: str) -> dict:
+def _knowledge_repo_push(project_id: str, candidate_ids: list[int]) -> dict:
     from ..knowledge.shared_repo import push_repo
-    return push_repo(project_id)
+    return push_repo(project_id, candidate_ids)
 
 
 def _get_phase_dir(project_root: Path, run_id: str):
