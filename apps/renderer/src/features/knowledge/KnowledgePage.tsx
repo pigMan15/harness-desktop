@@ -50,6 +50,18 @@ function KnowledgeContent(): React.ReactElement {
     }).catch(() => {})
   }, [selectedProjectId])
 
+  useEffect(() => {
+    window.harness?.getActiveKnowledgeCodexSynthesis(selectedProjectId).then(r => {
+      if (r?.active && r.sessionId) {
+        const id = String(r.sessionId)
+        setCodexSessionId(id)
+        setCodexRunning(true)
+        showMsg('Resumed active Codex synthesis session.', 'info')
+        beginCodexPolling(id)
+      }
+    }).catch(() => {})
+  }, [selectedProjectId])
+
   useEffect(() => () => { if (timer.current) clearInterval(timer.current) }, [])
 
   async function review(id: number, decision: string) {

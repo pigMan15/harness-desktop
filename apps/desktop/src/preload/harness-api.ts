@@ -65,6 +65,7 @@ export interface HarnessApi {
   pullKnowledgeRepo: (projectId: string) => Promise<unknown>
   synthesizeKnowledgeRepo: (projectId: string, candidateIds: number[]) => Promise<unknown>
   startKnowledgeCodexSynthesis: (projectId: string, candidateIds: number[], allowDirty?: boolean) => Promise<unknown>
+  getActiveKnowledgeCodexSynthesis: (projectId: string) => Promise<unknown>
   pollKnowledgeCodexSynthesis: (projectId: string, sessionId: string) => Promise<unknown>
   respondKnowledgeCodexSynthesis: (projectId: string, sessionId: string, decision: unknown) => Promise<unknown>
   cancelKnowledgeCodexSynthesis: (projectId: string, sessionId: string) => Promise<unknown>

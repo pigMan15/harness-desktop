@@ -205,6 +205,8 @@ async def _dispatch(method: str, params: dict) -> Any:
             params.get("candidateIds", []),
             bool(params.get("allowDirty", False)),
         )
+    if method == "knowledge.repo.codex.active":
+        return _knowledge_repo_codex_active(project_id)
     if method == "knowledge.repo.codex.poll":
         return _knowledge_repo_codex_poll(project_id, params.get("sessionId", ""))
     if method == "knowledge.repo.codex.respond":
@@ -881,6 +883,20 @@ async def _knowledge_repo_codex_start(
         "candidateCount": context["candidateCount"],
         "rules": context["rules"],
     }
+
+
+def _knowledge_repo_codex_active(project_id: str) -> dict:
+    for session_id, session in reversed(_knowledge_codex_sessions.items()):
+        if session.get("projectId") == project_id and not session.get("diffEmitted"):
+            server: CodexAppServer = session["server"]
+            return {
+                "active": True,
+                "sessionId": session_id,
+                "pid": server.pid,
+                "threadId": server.thread_id,
+                "turnId": server.turn_id,
+            }
+    return {"active": False}
 
 
 def _knowledge_repo_codex_poll(project_id: str, session_id: str) -> list[dict]:
