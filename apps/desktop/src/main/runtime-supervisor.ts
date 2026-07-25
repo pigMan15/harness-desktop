@@ -14,7 +14,7 @@ import { EventEmitter } from 'node:events'
 import fs from 'node:fs'
 import path from 'node:path'
 
-export const DESKTOP_VERSION = '0.2.0'
+export const DESKTOP_VERSION = '0.2.1'
 
 export interface RuntimeSupervisorEvents {
   status: (healthy: boolean) => void

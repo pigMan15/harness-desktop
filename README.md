@@ -7,7 +7,7 @@
 
 > 将 `.harness` 工程化约束变成可观察、可审批、可恢复、可审计的 AI Coding 桌面工作台。
 
-**当前版本：0.2.0** · Windows 首发 · Electron + React + Python Runtime · 原生 Codex Terminal
+**当前版本：0.2.1** · Windows 首发 · Electron + React + Python Runtime · 原生 Codex Terminal
 
 Harness Desktop 面向需要长期使用 AI Coding Agent 的项目。它不替代 Codex，也不把流程约束藏在 Prompt 里，而是把项目规则、Run、Worktree、节点、门禁、产物、审批和知识沉淀放到一个可视化工作台中。
 
@@ -126,7 +126,7 @@ Knowledge 页面采用自适应布局：空闲时候选列表全宽展示；运�
 
 ### 使用安装包
 
-从 [GitHub Releases](https://github.com/pigMan15/harness-desktop/releases) 下载 Harness Desktop 0.2.0 的 Windows 安装包。
+从 [GitHub Releases](https://github.com/pigMan15/harness-desktop/releases) 下载 Harness Desktop 0.2.1 的 Windows 安装包。
 
 当前安装包未提供正式代码签名，Windows 可能显示未知发布者提示。生产分发前仍需要独立完成签名、升级和卸载验证。
 
@@ -193,8 +193,8 @@ pnpm --filter @harness/desktop package
 
 预期 Windows 产物包括：
 
-- `Harness Desktop-0.2.0 Setup.exe`
-- `harness-desktop-0.2.0-full.nupkg`
+- `Harness Desktop-0.2.1 Setup.exe`
+- `harness-desktop-0.2.1-full.nupkg`
 - `RELEASES`
 - unpacked `Harness Desktop.exe`
 

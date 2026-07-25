@@ -16,7 +16,7 @@ describe('Desktop packaging configuration', () => {
     const forge = readFileSync(path.join(desktopRoot, 'forge.config.ts'), 'utf8')
     const supervisor = readFileSync(path.join(desktopRoot, 'src', 'main', 'runtime-supervisor.ts'), 'utf8')
 
-    expect(packageJson.version).toBe('0.2.0')
+    expect(packageJson.version).toBe('0.2.1')
     expect(forge).toContain(`appVersion: '${packageJson.version}'`)
     expect(supervisor).toContain(`DESKTOP_VERSION = '${packageJson.version}'`)
   })
