@@ -99,11 +99,19 @@ button:disabled { cursor: not-allowed; opacity: .5; }
 .markdown-table th, .markdown-table td { padding: 7px 9px; border: 1px solid #d9dce1; text-align: left; vertical-align: top; }
 .markdown-table th { background: #f8f9fa; font-weight: 650; }
 .knowledge-page { padding: 26px 28px 36px; }
-.knowledge-page h2 { margin: 0 0 14px; color: #202124; font-size: 24px; letter-spacing: 0; }
+.knowledge-page h2 { margin: 0; color: #202124; font-size: 24px; letter-spacing: 0; }
+.knowledge-hero { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; margin: 0 0 18px; padding: 18px 20px; border: 1px solid #e3e8ef; border-radius: 18px; background: radial-gradient(circle at top left,#eef6ff 0,#fff 42%,#f8fafc 100%); box-shadow: 0 16px 34px rgba(25,87,145,.08); }
+.knowledge-hero p { margin: 7px 0 0; color: #64748b; font-size: 13px; line-height: 1.55; }
+.knowledge-hero-count { flex: 0 0 auto; padding: 7px 11px; border-radius: 999px; background: #e8f0fe; color: #174ea6; font-size: 12px; font-weight: 700; }
 .knowledge-workbench { display: grid; grid-template-columns: minmax(520px, 1fr) minmax(380px, 38vw); gap: 18px; align-items: start; }
 .knowledge-main { min-width: 0; }
 .knowledge-executor-rail { position: sticky; top: 18px; min-width: 0; display: grid; gap: 14px; max-height: calc(100vh - 94px); overflow: hidden; }
-.knowledge-executor-card { min-width: 0; display: grid; gap: 10px; padding: 14px; border: 1px solid #dfe3e8; border-radius: 14px; background: #fff; box-shadow: 0 10px 24px rgba(60,64,67,.08); }
+.knowledge-executor-card { min-width: 0; display: grid; gap: 10px; padding: 14px; border: 1px solid #dfe3e8; border-radius: 16px; background: #fff; box-shadow: 0 14px 32px rgba(15,23,42,.10); }
+.knowledge-executor-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding-bottom: 10px; border-bottom: 1px solid #edf1f5; }
+.knowledge-executor-head div { display: grid; gap: 3px; min-width: 0; }
+.knowledge-executor-head strong { color: #111827; font-size: 14px; }
+.knowledge-executor-head span { color: #64748b; font-size: 12px; }
+.knowledge-executor-head code { max-width: 48%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 3px 7px; border-radius: 999px; background: #f1f5f9; color: #64748b; font-size: 11px; }
 .knowledge-empty-panel { min-height: 120px; display: grid; place-items: center; padding: 18px; border: 1px dashed #cfd7e3; border-radius: 10px; background: #f8fafc; color: #6b7280; text-align: center; font-size: 13px; line-height: 1.55; }
 .knowledge-diff-pre { max-height: 44vh; margin: 0; overflow: auto; padding: 12px; border: 1px solid #dfe3e8; border-radius: 10px; background: #0f172a; color: #dbeafe; font-size: 12px; line-height: 1.45; }
 .knowledge-codex-pre { max-height: 32vh; margin: 0; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; padding: 12px; border: 1px solid #dfe3e8; border-radius: 10px; background: #17181a; color: #e8eaed; font-size: 12px; line-height: 1.55; }
@@ -124,6 +132,10 @@ button:disabled { cursor: not-allowed; opacity: .5; }
 .knowledge-tabs { display: inline-flex; gap: 3px; margin: 0 0 20px; padding: 3px; border: 1px solid #d9dce1; border-radius: 8px; background: #fff; }
 .knowledge-tabs button { min-height: 34px; padding: 0 16px; border: 0; border-radius: 6px; background: transparent; color: #5f6368; cursor: pointer; }
 .knowledge-tabs button.active { background: #1769aa; color: #fff; font-weight: 650; }
+.knowledge-message { margin: 0 0 16px; padding: 10px 12px; border-radius: 10px; font-size: 13px; line-height: 1.5; }
+.knowledge-message.info { border: 1px solid #bfdbfe; background: #eff6ff; color: #1d4ed8; }
+.knowledge-message.success { border: 1px solid #bbf7d0; background: #f0fdf4; color: #15803d; }
+.knowledge-message.error { border: 1px solid #fecaca; background: #fef2f2; color: #b91c1c; }
 .knowledge-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(420px, 1fr)); gap: 16px; align-items: start; }
 .knowledge-card { min-height: 236px; display: flex; flex-direction: column; gap: 12px; padding: 16px; border: 1px solid #dfe3e8; border-radius: 8px; background: #fff; box-shadow: 0 1px 3px rgba(60,64,67,.10); }
 .knowledge-card-header { min-width: 0; display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }

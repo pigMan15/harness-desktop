@@ -21,14 +21,20 @@ function KnowledgeContent(): React.ReactElement {
   const [confirmDangerous, setConfirmDangerous] = useState(false)
   const [dirtyBlocked, setDirtyBlocked] = useState(false)
   const [msg, setMsg] = useState('')
+  const [msgKind, setMsgKind] = useState<'info' | 'success' | 'error'>('info')
   const timer = useRef<ReturnType<typeof setInterval>>()
+
+  function showMsg(message: string, kind: 'info' | 'success' | 'error' = 'info') {
+    setMsg(message)
+    setMsgKind(kind)
+  }
 
   useEffect(() => {
     setMsg('')
     window.harness?.listKnowledge(selectedProjectId, tab).then(r => {
       if (Array.isArray(r)) setCandidates(r)
-      else if (r?.error) setMsg(r.error)
-    }).catch((e: any) => setMsg(e.message))
+      else if (r?.error) showMsg(r.error, 'error')
+    }).catch((e: any) => showMsg(e.message, 'error'))
   }, [selectedProjectId, tab])
 
   useEffect(() => {
@@ -51,20 +57,20 @@ function KnowledgeContent(): React.ReactElement {
       const r = await window.harness!.reviewKnowledge(selectedProjectId, id, decision)
       if (r && !r.error) {
         setCandidates(prev => prev.filter(c => c.id !== id))
-        setMsg(`Candidate ${id} ${decision}`)
-      } else setMsg(r?.error || 'Failed')
-    } catch (e: any) { setMsg(e.message) }
+        showMsg(`Candidate ${id} ${decision}`, 'success')
+      } else showMsg(r?.error || 'Failed', 'error')
+    } catch (e: any) { showMsg(e.message, 'error') }
   }
 
   async function configureRepo() {
     try {
       const r = await window.harness!.configureKnowledgeRepo(selectedProjectId, repoForm.localPath, repoForm.remoteUrl, repoForm.branch)
-      if (r?.error) setMsg(r.error)
+      if (r?.error) showMsg(r.error, 'error')
       else {
         setRepo(r)
-        setMsg('Shared knowledge repository configured.')
+        showMsg('Shared knowledge repository configured.', 'success')
       }
-    } catch (e: any) { setMsg(e.message) }
+    } catch (e: any) { showMsg(e.message, 'error') }
   }
 
   async function inspectLocalPath() {
@@ -79,31 +85,31 @@ function KnowledgeContent(): React.ReactElement {
         remoteUrl: typeof r.remoteUrl === 'string' && r.remoteUrl ? r.remoteUrl : current.remoteUrl,
         branch: typeof r.branch === 'string' && r.branch ? r.branch : current.branch,
       }))
-      if (r?.isGitRepo) setMsg('Detected local Git repository and filled remote settings.')
+      if (r?.isGitRepo) showMsg('Detected local Git repository and filled remote settings.', 'success')
     } catch (_e: any) {}
   }
 
   async function pullRepo() {
     try {
       const r = await window.harness!.pullKnowledgeRepo(selectedProjectId)
-      if (r?.error) setMsg(r.error)
+      if (r?.error) showMsg(r.error, 'error')
       else {
         setRepo(r)
-        setMsg('Shared knowledge repository is up to date.')
+        showMsg('Shared knowledge repository is up to date.', 'success')
       }
-    } catch (e: any) { setMsg(e.message) }
+    } catch (e: any) { showMsg(e.message, 'error') }
   }
 
   async function synthesizeRepo() {
     try {
       const r = await window.harness!.synthesizeKnowledgeRepo(selectedProjectId, selectedIds)
-      if (r?.error) setMsg(r.error)
+      if (r?.error) showMsg(r.error, 'error')
       else {
         setPreview(r)
         setRepo(r.repo || repo)
-        setMsg(`Generated local preview for ${selectedIds.length} accepted candidate(s).`)
+        showMsg(`Generated local preview for ${selectedIds.length} accepted candidate(s).`, 'success')
       }
-    } catch (e: any) { setMsg(e.message) }
+    } catch (e: any) { showMsg(e.message, 'error') }
   }
 
   function beginCodexPolling(sessionId: string) {
@@ -124,12 +130,12 @@ function KnowledgeContent(): React.ReactElement {
       if (r?.error || !r?.sessionId) throw new Error(String(r?.error || 'Codex synthesis start failed'))
       const id = String(r.sessionId)
       setCodexSessionId(id)
-      setMsg(`Codex synthesis started for ${r.candidateCount || selectedIds.length} accepted candidate(s).`)
+      showMsg(`Codex synthesis started for ${r.candidateCount || selectedIds.length} accepted candidate(s).`, 'info')
       beginCodexPolling(id)
     } catch (e: any) {
       setCodexRunning(false)
       if (String(e.message || '').includes('KNOWLEDGE_REPO_DIRTY')) setDirtyBlocked(true)
-      setMsg(e.message)
+      showMsg(e.message, 'error')
     }
   }
 
@@ -156,7 +162,7 @@ function KnowledgeContent(): React.ReactElement {
       }
     } catch (e: any) {
       setCodexRunning(false)
-      setMsg(e.message)
+      showMsg(e.message, 'error')
       if (timer.current) clearInterval(timer.current)
     }
   }
@@ -171,7 +177,7 @@ function KnowledgeContent(): React.ReactElement {
       await window.harness.respondKnowledgeCodexSynthesis(selectedProjectId, codexSessionId, { requestId: pendingApproval.requestId, decision })
       setPendingApproval(undefined)
       setConfirmDangerous(false)
-    } catch (e: any) { setMsg(e.message) }
+    } catch (e: any) { showMsg(e.message, 'error') }
   }
 
   async function cancelCodex() {
@@ -179,18 +185,18 @@ function KnowledgeContent(): React.ReactElement {
     if (timer.current) clearInterval(timer.current)
     setCodexRunning(false)
     try { await window.harness.cancelKnowledgeCodexSynthesis(selectedProjectId, codexSessionId) }
-    catch (e: any) { setMsg(e.message) }
+    catch (e: any) { showMsg(e.message, 'error') }
   }
 
   async function pushRepo() {
     try {
       const r = await window.harness!.pushKnowledgeRepo(selectedProjectId)
-      if (r?.error) setMsg(r.error)
+      if (r?.error) showMsg(r.error, 'error')
       else {
         setRepo(r)
-        setMsg('Shared knowledge repository pushed.')
+        showMsg('Shared knowledge repository pushed.', 'success')
       }
-    } catch (e: any) { setMsg(e.message) }
+    } catch (e: any) { showMsg(e.message, 'error') }
   }
 
   function toggleCandidate(id: number) {
@@ -235,7 +241,13 @@ function KnowledgeContent(): React.ReactElement {
 
   return (
     <div className="knowledge-page">
-      <h2>Knowledge Promotion</h2>
+      <div className="knowledge-hero">
+        <div>
+          <h2>Knowledge Promotion</h2>
+          <p>Review accepted learnings, let Codex merge them into the shared knowledge base, then preview and publish the Git diff.</p>
+        </div>
+        <span className="knowledge-hero-count">{selectedIds.length} selected</span>
+      </div>
       <div className="knowledge-workbench">
         <main className="knowledge-main">
           <section className="knowledge-repo-panel">
@@ -270,7 +282,7 @@ function KnowledgeContent(): React.ReactElement {
           <button key={t} onClick={() => setTab(t)} className={tab === t ? 'active' : ''}>{t === 'draft' ? 'Pending' : t === 'accepted' ? 'Accepted' : 'Rejected'}</button>
         ))}
       </div>
-      {msg && <p style={{ color: '#c62828', background: '#ffebee', padding: 8, borderRadius: 4 }}>{msg}</p>}
+      {msg && <p className={`knowledge-message ${msgKind}`}>{msg}</p>}
       {candidates.length === 0 && !msg && <p style={{ color: '#999' }}>No {tab} knowledge candidates.</p>}
       <div className="knowledge-grid">
       {candidates.map((c: any) => (
@@ -308,8 +320,11 @@ function KnowledgeContent(): React.ReactElement {
         </main>
         <aside className="knowledge-executor-rail">
           <section className="knowledge-executor-card">
-            <div className="knowledge-preview-head">
-              <strong>Local preview diff</strong>
+            <div className="knowledge-executor-head">
+              <div>
+                <strong>Local preview diff</strong>
+                <span>最终写入共享知识库的文件差异</span>
+              </div>
               {preview?.manualPushCommand && <code>{preview.manualPushCommand}</code>}
             </div>
             {preview?.diff
@@ -317,8 +332,11 @@ function KnowledgeContent(): React.ReactElement {
               : <div className="knowledge-empty-panel">Codex 完成后，这里展示共享知识库本地仓库的 Git diff。</div>}
           </section>
           <section className="knowledge-executor-card">
-            <div className="knowledge-preview-head">
-              <strong>Codex synthesis</strong>
+            <div className="knowledge-executor-head">
+              <div>
+                <strong>Codex synthesis</strong>
+                <span>Codex 分析、审批和运行状态</span>
+              </div>
               {codexSessionId && <code>{codexSessionId}</code>}
             </div>
             {pendingApproval && <div className={`notice ${confirmDangerous ? 'error' : ''}`}>
