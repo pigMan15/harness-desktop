@@ -5,6 +5,7 @@ Writing to long-term knowledge base requires human review/accept.
 """
 
 import json
+import hashlib
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -86,7 +87,7 @@ def list_candidates_with_content(project_id: str, project_root: Path, status: st
             candidate["contentType"] = "markdown" if source_path.suffix.lower() == ".md" else "text"
         except OSError:
             continue
-    return candidates
+    return _dedupe_candidates(candidates)
 
 
 def sync_phase_candidates(project_id: str, project_root: Path) -> None:
@@ -119,14 +120,15 @@ def sync_phase_candidates(project_id: str, project_root: Path) -> None:
             source = str(source_path.relative_to(project_root.resolve()))
         except ValueError:
             source = str(source_path)
+        content = source_path.read_text(encoding="utf-8", errors="replace")
+        title, summary = _summarize_markdown_candidate(run_id, content)
         exists = db.execute(
-            "SELECT 1 FROM knowledge_candidates WHERE project_id = ? AND run_id = ? AND source = ?",
-            (project_id, run_id, source),
+            """SELECT 1 FROM knowledge_candidates
+               WHERE project_id = ? AND run_id = ? AND type = ? AND title = ? AND summary = ?""",
+            (project_id, run_id, "case", title, summary),
         ).fetchone()
         if exists:
             continue
-        content = source_path.read_text(encoding="utf-8", errors="replace")
-        title, summary = _summarize_markdown_candidate(run_id, content)
         db.execute(
             """INSERT INTO knowledge_candidates (project_id, run_id, title, type, summary, source)
                VALUES (?, ?, ?, ?, ?, ?)""",
@@ -154,6 +156,28 @@ def _summarize_markdown_candidate(run_id: str, content: str) -> tuple[str, str]:
     return title, summary[:300] or "Knowledge promotion artifact is ready for review."
 
 
+def _dedupe_candidates(candidates: list[dict]) -> list[dict]:
+    seen: set[tuple[str, str, str, str, str, str, str]] = set()
+    deduped: list[dict] = []
+    for candidate in candidates:
+        content = str(candidate.get("content") or "")
+        content_hash = hashlib.sha256(content.encode("utf-8")).hexdigest() if content else ""
+        key = (
+            str(candidate.get("project_id") or ""),
+            str(candidate.get("run_id") or ""),
+            str(candidate.get("status") or ""),
+            str(candidate.get("type") or ""),
+            str(candidate.get("title") or ""),
+            str(candidate.get("summary") or ""),
+            content_hash,
+        )
+        if key in seen:
+            continue
+        seen.add(key)
+        deduped.append(candidate)
+    return deduped
+
+
 def review_candidate(candidate_id: int, decision: str, reviewer: str = "user") -> dict:
     """Accept or reject a knowledge candidate.
 
@@ -164,9 +188,24 @@ def review_candidate(candidate_id: int, decision: str, reviewer: str = "user") -
         raise ValueError(f"Invalid decision: {decision!r}")
     db = get_db()
     now = datetime.now(timezone.utc).isoformat()
+    row = db.execute("SELECT * FROM knowledge_candidates WHERE id = ?", (candidate_id,)).fetchone()
+    if not row:
+        raise ValueError(f"KNOWLEDGE_CANDIDATE_NOT_FOUND: {candidate_id}")
     db.execute(
-        "UPDATE knowledge_candidates SET status = ?, reviewer = ?, reviewed_at = ? WHERE id = ?",
-        (decision, reviewer, now, candidate_id),
+        """UPDATE knowledge_candidates
+           SET status = ?, reviewer = ?, reviewed_at = ?
+           WHERE project_id = ? AND run_id = ? AND type = ? AND title = ? AND summary = ? AND status = ?""",
+        (
+            decision,
+            reviewer,
+            now,
+            row["project_id"],
+            row["run_id"],
+            row["type"],
+            row["title"],
+            row["summary"],
+            row["status"],
+        ),
     )
     db.commit()
     return {"id": candidate_id, "status": decision, "reviewer": reviewer, "reviewed_at": now}

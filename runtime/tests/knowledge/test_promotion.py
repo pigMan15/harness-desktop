@@ -2,7 +2,12 @@
 
 import pytest
 
-from harness_runtime.knowledge.service import list_candidates, promote_candidate, review_candidate
+from harness_runtime.knowledge.service import (
+    list_candidates,
+    list_candidates_with_content,
+    promote_candidate,
+    review_candidate,
+)
 
 PROJECT_ID = "test-knowledge-001"
 RUN_ID = "test-run-001"
@@ -39,3 +44,26 @@ class TestPromotion:
         cid = promote_candidate(PROJECT_ID, RUN_ID, "T", "S", "src")
         result = review_candidate(cid, "rejected")
         assert result["status"] == "rejected"
+
+    def test_list_with_content_dedupes_same_run_summary_and_content(self, tmp_path):
+        first = tmp_path / "first.md"
+        second = tmp_path / "second.md"
+        first.write_text("# 知识沉淀\n\nsame reusable content\n", encoding="utf-8")
+        second.write_text("# 知识沉淀\n\nsame reusable content\n", encoding="utf-8")
+        promote_candidate(PROJECT_ID, RUN_ID, "知识沉淀", "same reusable content", str(first))
+        promote_candidate(PROJECT_ID, RUN_ID, "知识沉淀", "same reusable content", str(second))
+
+        candidates = list_candidates_with_content(PROJECT_ID, tmp_path, status="draft")
+
+        assert len(candidates) == 1
+
+    def test_review_updates_duplicate_drafts_together(self):
+        first = promote_candidate(PROJECT_ID, RUN_ID, "知识沉淀", "same summary", "source-a")
+        promote_candidate(PROJECT_ID, RUN_ID, "知识沉淀", "same summary", "source-b")
+
+        review_candidate(first, "accepted")
+        drafts = list_candidates(PROJECT_ID, status="draft")
+        accepted = list_candidates(PROJECT_ID, status="accepted")
+
+        assert drafts == []
+        assert len(accepted) == 2
