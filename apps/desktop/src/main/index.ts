@@ -269,6 +269,8 @@ app.whenReady().then(() => {
     runtimeCall('knowledge.repo.status', { projectId }))
   ipcMain.handle('knowledge:repo-configure', async (_e, projectId: string, localPath: string, remoteUrl: string, branch: string) =>
     runtimeCall('knowledge.repo.configure', { projectId, localPath, remoteUrl, branch }))
+  ipcMain.handle('knowledge:repo-inspect-local', async (_e, projectId: string, localPath: string) =>
+    runtimeCall('knowledge.repo.inspectLocal', { projectId, localPath }))
   ipcMain.handle('knowledge:repo-pull', async (_e, projectId: string) =>
     runtimeCall('knowledge.repo.pull', { projectId }))
   ipcMain.handle('knowledge:repo-synthesize', async (_e, projectId: string, candidateIds: number[]) =>

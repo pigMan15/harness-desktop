@@ -61,6 +61,7 @@ export interface HarnessApi {
   reviewKnowledge: (projectId: string, candidateId: number, decision: string) => Promise<unknown>
   getKnowledgeRepoStatus: (projectId: string) => Promise<unknown>
   configureKnowledgeRepo: (projectId: string, localPath: string, remoteUrl: string, branch: string) => Promise<unknown>
+  inspectKnowledgeRepoLocalPath: (projectId: string, localPath: string) => Promise<unknown>
   pullKnowledgeRepo: (projectId: string) => Promise<unknown>
   synthesizeKnowledgeRepo: (projectId: string, candidateIds: number[]) => Promise<unknown>
   startKnowledgeCodexSynthesis: (projectId: string, candidateIds: number[]) => Promise<unknown>

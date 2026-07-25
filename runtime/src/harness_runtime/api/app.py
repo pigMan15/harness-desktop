@@ -192,6 +192,8 @@ async def _dispatch(method: str, params: dict) -> Any:
             params.get("remoteUrl", ""),
             params.get("branch", ""),
         )
+    if method == "knowledge.repo.inspectLocal":
+        return _knowledge_repo_inspect_local(params.get("localPath", ""))
     if method == "knowledge.repo.pull":
         return _knowledge_repo_pull(project_id)
     if method == "knowledge.repo.synthesize":
@@ -822,6 +824,11 @@ def _knowledge_repo_status(project_id: str) -> dict:
 def _knowledge_repo_configure(project_id: str, local_path: str, remote_url: str, branch: str) -> dict:
     from ..knowledge.shared_repo import configure_repo
     return configure_repo(project_id, local_path, remote_url, branch)
+
+
+def _knowledge_repo_inspect_local(local_path: str) -> dict:
+    from ..knowledge.shared_repo import inspect_local_path
+    return inspect_local_path(local_path)
 
 
 def _knowledge_repo_pull(project_id: str) -> dict:

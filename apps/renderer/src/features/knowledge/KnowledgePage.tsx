@@ -66,6 +66,22 @@ function KnowledgeContent(): React.ReactElement {
     } catch (e: any) { setMsg(e.message) }
   }
 
+  async function inspectLocalPath() {
+    const localPath = repoForm.localPath.trim()
+    if (!window.harness || !localPath) return
+    try {
+      const r = await window.harness.inspectKnowledgeRepoLocalPath(selectedProjectId, localPath)
+      if (r?.error) return
+      setRepoForm(current => ({
+        ...current,
+        localPath: typeof r.localPath === 'string' ? r.localPath : current.localPath,
+        remoteUrl: typeof r.remoteUrl === 'string' && r.remoteUrl ? r.remoteUrl : current.remoteUrl,
+        branch: typeof r.branch === 'string' && r.branch ? r.branch : current.branch,
+      }))
+      if (r?.isGitRepo) setMsg('Detected local Git repository and filled remote settings.')
+    } catch (_e: any) {}
+  }
+
   async function pullRepo() {
     try {
       const r = await window.harness!.pullKnowledgeRepo(selectedProjectId)
@@ -190,7 +206,7 @@ function KnowledgeContent(): React.ReactElement {
           <p>Pull a shared Git knowledge base locally, generate a Codex-ready update draft from accepted records, preview the diff, then push here or push manually.</p>
         </div>
         <div className="knowledge-repo-form">
-          <label>Local path<input value={repoForm.localPath} onChange={e => setRepoForm({ ...repoForm, localPath: e.target.value })} placeholder="G:\\Project\\ai\\shared-knowledge" /></label>
+          <label>Local path<input value={repoForm.localPath} onBlur={() => void inspectLocalPath()} onChange={e => setRepoForm({ ...repoForm, localPath: e.target.value })} placeholder="G:\\Project\\ai\\shared-knowledge" /></label>
           <label>Remote URL<input value={repoForm.remoteUrl} onChange={e => setRepoForm({ ...repoForm, remoteUrl: e.target.value })} placeholder="https://github.com/org/knowledge.git" /></label>
           <label>Branch<input value={repoForm.branch} onChange={e => setRepoForm({ ...repoForm, branch: e.target.value })} placeholder="main" /></label>
         </div>

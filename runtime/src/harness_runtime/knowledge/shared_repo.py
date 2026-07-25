@@ -45,6 +45,10 @@ def _ensure_table() -> None:
 
 def configure_repo(project_id: str, local_path: str, remote_url: str = "", branch: str = "") -> dict:
     path = _normalize_local_path(local_path)
+    detected = inspect_local_path(str(path))
+    if detected.get("isGitRepo"):
+        remote_url = remote_url.strip() or str(detected.get("remoteUrl") or "")
+        branch = branch.strip() or str(detected.get("branch") or "")
     _ensure_table()
     now = datetime.now(timezone.utc).isoformat()
     db = get_db()
@@ -60,6 +64,25 @@ def configure_repo(project_id: str, local_path: str, remote_url: str = "", branc
     )
     db.commit()
     return repo_status(project_id)
+
+
+def inspect_local_path(local_path: str) -> dict:
+    path = _normalize_local_path(local_path)
+    exists = path.exists()
+    is_git_repo = exists and (path / ".git").exists()
+    remote_url = ""
+    branch = ""
+    if is_git_repo:
+        remote_url = _git(path, "remote", "get-url", "origin", check=False)["stdout"].strip()
+        branch = _git(path, "branch", "--show-current", check=False)["stdout"].strip()
+    return {
+        "localPath": str(path),
+        "exists": exists,
+        "isGitRepo": is_git_repo,
+        "remoteUrl": remote_url,
+        "branch": branch,
+        "rules": _discover_rules(path) if exists else [],
+    }
 
 
 def repo_status(project_id: str) -> dict:

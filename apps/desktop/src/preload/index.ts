@@ -55,6 +55,7 @@ const harnessApi: HarnessApi = {
   reviewKnowledge: (p: string,id: number,d: string) => ipcRenderer.invoke('knowledge:review',p,id,d),
   getKnowledgeRepoStatus: (p: string) => ipcRenderer.invoke('knowledge:repo-status',p),
   configureKnowledgeRepo: (p: string,l: string,r: string,b: string) => ipcRenderer.invoke('knowledge:repo-configure',p,l,r,b),
+  inspectKnowledgeRepoLocalPath: (p: string,l: string) => ipcRenderer.invoke('knowledge:repo-inspect-local',p,l),
   pullKnowledgeRepo: (p: string) => ipcRenderer.invoke('knowledge:repo-pull',p),
   synthesizeKnowledgeRepo: (p: string,ids: number[]) => ipcRenderer.invoke('knowledge:repo-synthesize',p,ids),
   startKnowledgeCodexSynthesis: (p: string,ids: number[]) => ipcRenderer.invoke('knowledge:repo-codex-start',p,ids),
