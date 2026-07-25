@@ -866,6 +866,7 @@ async def _knowledge_repo_codex_start(
     developer_instructions = (
         "你正在 Harness Desktop 的 Knowledge 模块中运行。"
         "请使用中文进行分析和回复。"
+        "在 Windows PowerShell 中读取文本文件时必须显式使用 -Encoding utf8，写入文本也必须使用 UTF-8，避免中文乱码。"
         "只允许更新共享知识库本地 Git 仓库的 working tree。"
         "不要 push，不要 commit；文件修改需要等待用户审批。"
     )

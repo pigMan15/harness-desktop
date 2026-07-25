@@ -372,6 +372,7 @@ def _render_codex_prompt(project_id: str, repo_root: Path, candidates: list[dict
         "请全程使用中文进行分析、说明和生成内容，除非共享知识库模板明确要求使用其它语言。\n\n"
         "知识库工作要求：\n"
         "- 当前工作目录就是共享知识库本地 Git 仓库。\n"
+        "- 在 Windows PowerShell 中读取文本必须显式使用 `Get-Content -Encoding utf8`（或等价 UTF-8 方式），写入文件也必须保持 UTF-8，禁止依赖系统默认代码页。\n"
         "- 请先阅读并遵循仓库自己的知识规则和模板，包括 AGENTS.md、CLAUDE.md、README.md、.harness 文件，以及你能找到的其它模板。\n"
         "- 以下已审批候选记录是本次更新的数据源。\n"
         "- 请根据仓库现有结构，生成或更新对应的知识文档。\n"

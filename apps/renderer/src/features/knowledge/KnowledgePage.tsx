@@ -2,8 +2,36 @@ import React, { useEffect, useRef, useState } from 'react'
 import { ProjectRequired, useWorkspace } from '../layout/WorkspaceContext'
 import { MarkdownPreview } from '../artifacts/ArtifactsPage'
 
-interface KnowledgeLogEntry { type: string; sequence: number; content?: string; error?: string; tool?: string; params?: Record<string, unknown>; message?: string; category?: string; requestId?: number; diff?: string; repo?: any; manualPushCommand?: string }
+interface KnowledgeLogEntry { type: string; sequence: number; content?: string; error?: unknown; tool?: string; params?: Record<string, unknown>; message?: string; category?: string; requestId?: number; diff?: string; repo?: any; manualPushCommand?: string }
 const DANGEROUS = new Set(['deploy', 'delete', 'dangerous_git'])
+const ANSI_ESCAPE = /\u001B\[[0-?]*[ -/]*[@-~]/g
+
+function cleanLogText(value: string): string {
+  return value.replace(ANSI_ESCAPE, '').replace(/\r\n/g, '\n')
+}
+
+function stringifyLogValue(value: unknown): string {
+  if (typeof value === 'string') return cleanLogText(value)
+  if (value == null) return ''
+  try {
+    return cleanLogText(JSON.stringify(value, null, 2))
+  } catch {
+    return cleanLogText(String(value))
+  }
+}
+
+function extractLogText(value: unknown, depth = 0): string {
+  if (depth > 3 || value == null) return ''
+  if (typeof value === 'string') return cleanLogText(value)
+  if (Array.isArray(value)) return value.map(item => extractLogText(item, depth + 1)).filter(Boolean).join('\n')
+  if (typeof value !== 'object') return ''
+  const record = value as Record<string, unknown>
+  for (const key of ['text', 'content', 'delta', 'message', 'reason', 'output']) {
+    const text = extractLogText(record[key], depth + 1)
+    if (text) return text
+  }
+  return extractLogText(record.item, depth + 1)
+}
 
 function KnowledgeContent(): React.ReactElement {
   const { selectedProjectId } = useWorkspace()
@@ -24,6 +52,7 @@ function KnowledgeContent(): React.ReactElement {
   const [msg, setMsg] = useState('')
   const [msgKind, setMsgKind] = useState<'info' | 'success' | 'error'>('info')
   const timer = useRef<ReturnType<typeof setInterval>>()
+  const codexLogRef = useRef<HTMLPreElement>(null)
 
   function showMsg(message: string, kind: 'info' | 'success' | 'error' = 'info') {
     setMsg(message)
@@ -64,6 +93,13 @@ function KnowledgeContent(): React.ReactElement {
   }, [selectedProjectId])
 
   useEffect(() => () => { if (timer.current) clearInterval(timer.current) }, [])
+
+  useEffect(() => {
+    const log = codexLogRef.current
+    if (!log) return
+    const frame = requestAnimationFrame(() => { log.scrollTop = log.scrollHeight })
+    return () => cancelAnimationFrame(frame)
+  }, [codexLogs, codexSessionId])
 
   async function review(id: number, decision: string) {
     try {
@@ -238,7 +274,7 @@ function KnowledgeContent(): React.ReactElement {
     const lines: string[] = []
     let outputBuffer = ''
     function flushOutput() {
-      const text = outputBuffer.trim()
+      const text = cleanLogText(outputBuffer).trim()
       if (text) lines.push(text)
       outputBuffer = ''
     }
@@ -250,7 +286,15 @@ function KnowledgeContent(): React.ReactElement {
       flushOutput()
       if (entry.type === 'tool_call') {
         const itemType = typeof entry.params?.type === 'string' ? entry.params.type : entry.tool || 'tool'
-        lines.push(`- ${itemType}`)
+        const detail = extractLogText(entry.params)
+        const labels: Record<string, string> = {
+          userMessage: '用户输入',
+          reasoning: 'Codex 正在分析',
+          agentMessage: 'Codex 回复',
+          commandExecution: '命令执行',
+          fileChange: '文件修改',
+        }
+        lines.push(detail ? `${labels[itemType] || itemType}\n${detail}` : labels[itemType] || itemType)
       } else if (entry.type === 'approval_required') {
         lines.push(`- Approval required: ${entry.message || entry.category || 'Codex requests approval'}`)
       } else if (entry.type === 'preview') {
@@ -258,7 +302,7 @@ function KnowledgeContent(): React.ReactElement {
       } else if (entry.type === 'exited') {
         lines.push('- Codex synthesis finished.')
       } else if (entry.error) {
-        lines.push(`- Error: ${entry.error}`)
+        lines.push(`- Error: ${stringifyLogValue(entry.error)}`)
       } else if (entry.message) {
         lines.push(`- ${entry.message}`)
       }
@@ -380,7 +424,7 @@ function KnowledgeContent(): React.ReactElement {
               </div>
             </div>}
             {codexLogs.length > 0 || codexSessionId
-              ? <pre className="knowledge-codex-pre">{codexLogs.length === 0 ? 'Waiting for Codex events...' : formatCodexLogs(codexLogs)}</pre>
+              ? <pre ref={codexLogRef} className="knowledge-codex-pre">{codexLogs.length === 0 ? 'Waiting for Codex events...' : formatCodexLogs(codexLogs)}</pre>
               : <div className="knowledge-empty-panel">这里展示 Codex 的运行状态、分析输出和审批请求。</div>}
             {codexSessionId && <div className="knowledge-feedback-box">
               <label>人工审批/修改意见</label>
