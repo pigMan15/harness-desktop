@@ -197,6 +197,39 @@ function KnowledgeContent(): React.ReactElement {
     setSelectedIds(prev => prev.includes(id) ? prev.filter(v => v !== id) : [...prev, id])
   }
 
+  function formatCodexLogs(entries: KnowledgeLogEntry[]): string {
+    const lines: string[] = []
+    let outputBuffer = ''
+    function flushOutput() {
+      const text = outputBuffer.trim()
+      if (text) lines.push(text)
+      outputBuffer = ''
+    }
+    for (const entry of entries) {
+      if (entry.type === 'output') {
+        outputBuffer += entry.content || ''
+        continue
+      }
+      flushOutput()
+      if (entry.type === 'tool_call') {
+        const itemType = typeof entry.params?.type === 'string' ? entry.params.type : entry.tool || 'tool'
+        lines.push(`• ${itemType}`)
+      } else if (entry.type === 'approval_required') {
+        lines.push(`• Approval required: ${entry.message || entry.category || 'Codex requests approval'}`)
+      } else if (entry.type === 'preview') {
+        lines.push('• Preview diff is ready.')
+      } else if (entry.type === 'exited') {
+        lines.push('• Codex synthesis finished.')
+      } else if (entry.error) {
+        lines.push(`• Error: ${entry.error}`)
+      } else if (entry.message) {
+        lines.push(`• ${entry.message}`)
+      }
+    }
+    flushOutput()
+    return lines.join('\n\n')
+  }
+
   const TYPE_LABELS: Record<string, string> = { case: 'Case', pitfall: 'Pitfall', decision: 'Decision', template: 'Template', pattern: 'Pattern' }
   const STATUS_LABELS: Record<string, string> = { draft: 'Pending', accepted: 'Accepted', rejected: 'Rejected' }
 
@@ -250,7 +283,7 @@ function KnowledgeContent(): React.ReactElement {
               <button className="button danger" onClick={() => void respondCodex('deny')}>Deny</button>
             </div>
           </div>}
-          <pre>{codexLogs.length === 0 ? 'Waiting for Codex events...' : codexLogs.map(entry => `${String(entry.sequence).padStart(3, '0')} ${entry.type} ${entry.content || entry.error || entry.message || (entry.tool ? `${entry.tool} ${JSON.stringify(entry.params || {})}` : '')}`).join('\n')}</pre>
+          <pre>{codexLogs.length === 0 ? 'Waiting for Codex events...' : formatCodexLogs(codexLogs)}</pre>
         </div>}
       </section>
       <div className="knowledge-tabs">
