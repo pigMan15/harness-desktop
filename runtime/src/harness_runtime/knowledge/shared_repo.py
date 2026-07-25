@@ -179,12 +179,17 @@ def synthesize_preview(project_id: str, project_root: Path, candidate_ids: Itera
     }
 
 
-def synthesis_context(project_id: str, project_root: Path, candidate_ids: Iterable[int]) -> dict:
+def synthesis_context(
+    project_id: str,
+    project_root: Path,
+    candidate_ids: Iterable[int],
+    allow_dirty: bool = False,
+) -> dict:
     config = _require_config(project_id)
     path = Path(config["localPath"])
     _require_git_repo(path)
     status = repo_status(project_id)
-    if status.get("dirty"):
+    if status.get("dirty") and not allow_dirty:
         raise ValueError("KNOWLEDGE_REPO_DIRTY: commit, stash, or discard local changes before Codex synthesis")
     selected_ids = {int(candidate_id) for candidate_id in candidate_ids}
     if not selected_ids:

@@ -19,6 +19,7 @@ function KnowledgeContent(): React.ReactElement {
   const [codexSessionId, setCodexSessionId] = useState('')
   const [pendingApproval, setPendingApproval] = useState<KnowledgeLogEntry>()
   const [confirmDangerous, setConfirmDangerous] = useState(false)
+  const [dirtyBlocked, setDirtyBlocked] = useState(false)
   const [msg, setMsg] = useState('')
   const timer = useRef<ReturnType<typeof setInterval>>()
 
@@ -110,15 +111,16 @@ function KnowledgeContent(): React.ReactElement {
     timer.current = setInterval(() => { void pollCodex(sessionId) }, 700)
   }
 
-  async function runCodexSynthesis() {
+  async function runCodexSynthesis(allowDirty = false) {
     if (!window.harness) return
     setCodexLogs([])
     setPendingApproval(undefined)
     setPreview(null)
     setMsg('')
+    setDirtyBlocked(false)
     setCodexRunning(true)
     try {
-      const r = await window.harness.startKnowledgeCodexSynthesis(selectedProjectId, selectedIds)
+      const r = await window.harness.startKnowledgeCodexSynthesis(selectedProjectId, selectedIds, allowDirty)
       if (r?.error || !r?.sessionId) throw new Error(String(r?.error || 'Codex synthesis start failed'))
       const id = String(r.sessionId)
       setCodexSessionId(id)
@@ -126,6 +128,7 @@ function KnowledgeContent(): React.ReactElement {
       beginCodexPolling(id)
     } catch (e: any) {
       setCodexRunning(false)
+      if (String(e.message || '').includes('KNOWLEDGE_REPO_DIRTY')) setDirtyBlocked(true)
       setMsg(e.message)
     }
   }
@@ -213,7 +216,8 @@ function KnowledgeContent(): React.ReactElement {
         <div className="knowledge-repo-actions">
           <button className="button" onClick={configureRepo}>Save</button>
           <button className="button" onClick={pullRepo} disabled={!repo.configured}>Pull / Clone</button>
-          <button className="button primary" onClick={runCodexSynthesis} disabled={codexRunning || !repo.configured || selectedIds.length === 0}>Run Codex Synthesis</button>
+          <button className="button primary" onClick={() => void runCodexSynthesis(false)} disabled={codexRunning || !repo.configured || selectedIds.length === 0}>Run Codex Synthesis</button>
+          {dirtyBlocked && <button className="button danger" onClick={() => void runCodexSynthesis(true)} disabled={codexRunning || !repo.configured || selectedIds.length === 0}>Run Anyway</button>}
           <button className="button" onClick={synthesizeRepo} disabled={codexRunning || !repo.configured || selectedIds.length === 0}>Prepare Draft</button>
           <button className="button danger" onClick={cancelCodex} disabled={!codexRunning}>Stop Codex</button>
           <button className="button success" onClick={pushRepo} disabled={!repo.configured || !repo.dirty}>Push via App</button>

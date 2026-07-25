@@ -199,7 +199,12 @@ async def _dispatch(method: str, params: dict) -> Any:
     if method == "knowledge.repo.synthesize":
         return _knowledge_repo_synthesize(project_id, project_root, params.get("candidateIds", []))
     if method == "knowledge.repo.codex.start":
-        return await _knowledge_repo_codex_start(project_id, project_root, params.get("candidateIds", []))
+        return await _knowledge_repo_codex_start(
+            project_id,
+            project_root,
+            params.get("candidateIds", []),
+            bool(params.get("allowDirty", False)),
+        )
     if method == "knowledge.repo.codex.poll":
         return _knowledge_repo_codex_poll(project_id, params.get("sessionId", ""))
     if method == "knowledge.repo.codex.respond":
@@ -841,13 +846,18 @@ def _knowledge_repo_synthesize(project_id: str, project_root: Path, candidate_id
     return synthesize_preview(project_id, project_root, candidate_ids)
 
 
-async def _knowledge_repo_codex_start(project_id: str, project_root: Path, candidate_ids: list[int]) -> dict:
+async def _knowledge_repo_codex_start(
+    project_id: str,
+    project_root: Path,
+    candidate_ids: list[int],
+    allow_dirty: bool,
+) -> dict:
     from ..knowledge.shared_repo import synthesis_context
 
     capability = await _codex_adapter.probe()
     if not capability.available or not capability.path:
         raise RuntimeError(capability.diagnostics or "CODEX_UNAVAILABLE")
-    context = synthesis_context(project_id, project_root, candidate_ids)
+    context = synthesis_context(project_id, project_root, candidate_ids, allow_dirty=allow_dirty)
     server = CodexAppServer(capability.path, Path(context["repoPath"]))
     developer_instructions = (
         "You are running inside Harness Desktop's Knowledge module. "

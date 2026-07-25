@@ -101,7 +101,7 @@ export interface HarnessApi {
   inspectKnowledgeRepoLocalPath: (projectId: string, localPath: string) => Promise<ApiObject>
   pullKnowledgeRepo: (projectId: string) => Promise<ApiObject>
   synthesizeKnowledgeRepo: (projectId: string, candidateIds: number[]) => Promise<ApiObject>
-  startKnowledgeCodexSynthesis: (projectId: string, candidateIds: number[]) => Promise<ApiObject>
+  startKnowledgeCodexSynthesis: (projectId: string, candidateIds: number[], allowDirty?: boolean) => Promise<ApiObject>
   pollKnowledgeCodexSynthesis: (projectId: string, sessionId: string) => Promise<unknown>
   respondKnowledgeCodexSynthesis: (projectId: string, sessionId: string, decision: ExecutionDecision) => Promise<unknown>
   cancelKnowledgeCodexSynthesis: (projectId: string, sessionId: string) => Promise<ApiObject>

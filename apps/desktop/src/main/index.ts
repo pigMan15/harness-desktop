@@ -275,8 +275,8 @@ app.whenReady().then(() => {
     runtimeCall('knowledge.repo.pull', { projectId }))
   ipcMain.handle('knowledge:repo-synthesize', async (_e, projectId: string, candidateIds: number[]) =>
     runtimeCall('knowledge.repo.synthesize', { projectId, candidateIds }))
-  ipcMain.handle('knowledge:repo-codex-start', async (_e, projectId: string, candidateIds: number[]) =>
-    runtimeCall('knowledge.repo.codex.start', { projectId, candidateIds }))
+  ipcMain.handle('knowledge:repo-codex-start', async (_e, projectId: string, candidateIds: number[], allowDirty?: boolean) =>
+    runtimeCall('knowledge.repo.codex.start', { projectId, candidateIds, allowDirty }))
   ipcMain.handle('knowledge:repo-codex-poll', async (_e, projectId: string, sessionId: string) =>
     runtimeCall('knowledge.repo.codex.poll', { projectId, sessionId }))
   ipcMain.handle('knowledge:repo-codex-respond', async (_e, projectId: string, sessionId: string, decision: unknown) =>
