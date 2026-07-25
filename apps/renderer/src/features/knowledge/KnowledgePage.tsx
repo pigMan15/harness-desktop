@@ -44,6 +44,7 @@ function KnowledgeContent(): React.ReactElement {
   const [preview, setPreview] = useState<any>(null)
   const [pushCandidateIds, setPushCandidateIds] = useState<number[]>([])
   const [codexLogs, setCodexLogs] = useState<KnowledgeLogEntry[]>([])
+  const [executorCollapsed, setExecutorCollapsed] = useState(true)
   const [codexRunning, setCodexRunning] = useState(false)
   const [codexSessionId, setCodexSessionId] = useState('')
   const [pendingApprovals, setPendingApprovals] = useState<KnowledgeLogEntry[]>([])
@@ -55,6 +56,7 @@ function KnowledgeContent(): React.ReactElement {
   const timer = useRef<ReturnType<typeof setInterval>>()
   const codexLogRef = useRef<HTMLPreElement>(null)
   const pendingApproval = pendingApprovals[0]
+  const hasExecutorHistory = Boolean(preview || codexSessionId || codexLogs.length > 0)
 
   function showMsg(message: string, kind: 'info' | 'success' | 'error' = 'info') {
     setMsg(message)
@@ -88,6 +90,7 @@ function KnowledgeContent(): React.ReactElement {
         const id = String(r.sessionId)
         setCodexSessionId(id)
         setCodexRunning(true)
+        setExecutorCollapsed(false)
         setPendingApprovals(Array.isArray(r.approvals) ? r.approvals : [])
         showMsg('Resumed active Codex synthesis session.', 'info')
         beginCodexPolling(id)
@@ -160,6 +163,7 @@ function KnowledgeContent(): React.ReactElement {
         setPreview(r)
         setRepo(r.repo || repo)
         setPushCandidateIds(Array.isArray(r.candidateIds) ? r.candidateIds.map(Number) : [...selectedIds])
+        setExecutorCollapsed(false)
         showMsg(`Generated local preview for ${selectedIds.length} accepted candidate(s).`, 'success')
       }
     } catch (e: any) { showMsg(e.message, 'error') }
@@ -179,6 +183,7 @@ function KnowledgeContent(): React.ReactElement {
     setMsg('')
     setDirtyBlocked(false)
     setCodexRunning(true)
+    setExecutorCollapsed(false)
     try {
       const r = await window.harness.startKnowledgeCodexSynthesis(selectedProjectId, selectedIds, allowDirty)
       if (r?.error || !r?.sessionId) throw new Error(String(r?.error || 'Codex synthesis start failed'))
@@ -188,6 +193,7 @@ function KnowledgeContent(): React.ReactElement {
       beginCodexPolling(id)
     } catch (e: any) {
       setCodexRunning(false)
+      setExecutorCollapsed(true)
       if (String(e.message || '').includes('KNOWLEDGE_REPO_DIRTY')) setDirtyBlocked(true)
       showMsg(e.message, 'error')
     }
@@ -215,6 +221,7 @@ function KnowledgeContent(): React.ReactElement {
         setPreview(previewEvent)
         setRepo(previewEvent.repo || repo)
         if (Array.isArray(previewEvent.candidateIds)) setPushCandidateIds(previewEvent.candidateIds.map(Number))
+        setExecutorCollapsed(false)
       }
       if (events.some(entry => entry.type === 'exited' || entry.type === 'error')) {
         setCodexRunning(false)
@@ -280,6 +287,7 @@ function KnowledgeContent(): React.ReactElement {
         if (Array.isArray(refreshed)) setCandidates(refreshed)
         const markedCount = Array.isArray(r.pushedCandidateIds) ? r.pushedCandidateIds.length : 0
         setPushCandidateIds([])
+        setExecutorCollapsed(true)
         showMsg(`Shared knowledge repository pushed${markedCount > 0 ? `; marked ${markedCount} candidate(s).` : '.'}`, 'success')
       }
     } catch (e: any) { showMsg(e.message, 'error') }
@@ -342,7 +350,7 @@ function KnowledgeContent(): React.ReactElement {
         </div>
         <span className="knowledge-hero-count">{selectedIds.length} selected</span>
       </div>
-      <div className="knowledge-workbench">
+      <div className={`knowledge-workbench ${executorCollapsed ? 'executor-collapsed' : 'executor-expanded'}`}>
         <main className="knowledge-main">
           <section className="knowledge-repo-panel">
             <div>
@@ -371,6 +379,13 @@ function KnowledgeContent(): React.ReactElement {
               {Array.isArray(repo.rules) && repo.rules.map((rule: any) => <span key={rule.path} className="knowledge-tag tag-rule">{rule.path}</span>)}
             </div>}
           </section>
+          {executorCollapsed && <section className="knowledge-executor-dock">
+            <div>
+              <strong>{hasExecutorHistory ? '执行结果已收起' : 'Codex 执行器待命'}</strong>
+              <span>{hasExecutorHistory ? '展开后可查看本地 Diff、Codex 日志与人工反馈。' : '运行 Codex 或生成预览后，右侧执行区会自动展开。'}</span>
+            </div>
+            {hasExecutorHistory && <button className="button" onClick={() => setExecutorCollapsed(false)}>展开执行区</button>}
+          </section>}
           <div className="knowledge-tabs">
         {(['draft', 'accepted', 'rejected'] as const).map(t => (
           <button key={t} onClick={() => setTab(t)} className={tab === t ? 'active' : ''}>{t === 'draft' ? 'Pending' : t === 'accepted' ? 'Accepted' : 'Rejected'}</button>
@@ -413,7 +428,11 @@ function KnowledgeContent(): React.ReactElement {
       ))}
       </div>
         </main>
-        <aside className="knowledge-executor-rail">
+        {!executorCollapsed && <aside className="knowledge-executor-rail">
+          <div className="knowledge-executor-toolbar">
+            <div><strong>执行工作台</strong><span>{codexRunning ? 'Codex 正在运行' : '预览、日志与人工审批'}</span></div>
+            <button className="button" onClick={() => setExecutorCollapsed(true)} disabled={codexRunning || pendingApprovals.length > 0}>收起</button>
+          </div>
           <section className="knowledge-executor-card">
             <div className="knowledge-executor-head">
               <div>
@@ -455,7 +474,7 @@ function KnowledgeContent(): React.ReactElement {
               </div>
             </div>}
           </section>
-        </aside>
+        </aside>}
       </div>
     </div>
   )
