@@ -3,6 +3,7 @@
 import json
 import hashlib
 import os
+import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -32,8 +33,10 @@ except Exception:
     pass
 
 from ..executors.codex.adapter import CodexAdapter
+from ..executors.codex.app_server import CodexAppServer
 
 _codex_adapter = CodexAdapter(os.environ.get("HARNESS_CODEX_PATH", "codex"))
+_knowledge_codex_sessions: dict[str, dict[str, Any]] = {}
 
 
 @app.get("/health")
@@ -193,6 +196,14 @@ async def _dispatch(method: str, params: dict) -> Any:
         return _knowledge_repo_pull(project_id)
     if method == "knowledge.repo.synthesize":
         return _knowledge_repo_synthesize(project_id, project_root, params.get("candidateIds", []))
+    if method == "knowledge.repo.codex.start":
+        return await _knowledge_repo_codex_start(project_id, project_root, params.get("candidateIds", []))
+    if method == "knowledge.repo.codex.poll":
+        return _knowledge_repo_codex_poll(project_id, params.get("sessionId", ""))
+    if method == "knowledge.repo.codex.respond":
+        return await _knowledge_repo_codex_respond(project_id, params.get("sessionId", ""), params.get("decision", {}))
+    if method == "knowledge.repo.codex.cancel":
+        return await _knowledge_repo_codex_cancel(project_id, params.get("sessionId", ""))
     if method == "knowledge.repo.push":
         return _knowledge_repo_push(project_id)
     if method == "execution.probe":
@@ -821,6 +832,74 @@ def _knowledge_repo_pull(project_id: str) -> dict:
 def _knowledge_repo_synthesize(project_id: str, project_root: Path, candidate_ids: list[int]) -> dict:
     from ..knowledge.shared_repo import synthesize_preview
     return synthesize_preview(project_id, project_root, candidate_ids)
+
+
+async def _knowledge_repo_codex_start(project_id: str, project_root: Path, candidate_ids: list[int]) -> dict:
+    from ..knowledge.shared_repo import synthesis_context
+
+    capability = await _codex_adapter.probe()
+    if not capability.available or not capability.path:
+        raise RuntimeError(capability.diagnostics or "CODEX_UNAVAILABLE")
+    context = synthesis_context(project_id, project_root, candidate_ids)
+    server = CodexAppServer(capability.path, Path(context["repoPath"]))
+    developer_instructions = (
+        "You are running inside Harness Desktop's Knowledge module. "
+        "Update only the shared knowledge repository working tree. "
+        "Never push, never commit, and wait for user approval for file changes."
+    )
+    await server.start(context["prompt"], developer_instructions=developer_instructions)
+    session_id = f"knowledge-codex-{uuid.uuid4().hex[:12]}"
+    _knowledge_codex_sessions[session_id] = {
+        "server": server,
+        "projectId": project_id,
+        "repoPath": context["repoPath"],
+        "diffEmitted": False,
+    }
+    return {
+        "sessionId": session_id,
+        "pid": server.pid,
+        "threadId": server.thread_id,
+        "turnId": server.turn_id,
+        "candidateCount": context["candidateCount"],
+        "rules": context["rules"],
+    }
+
+
+def _knowledge_repo_codex_poll(project_id: str, session_id: str) -> list[dict]:
+    from ..knowledge.shared_repo import repo_diff
+
+    session = _knowledge_codex_sessions.get(session_id)
+    if not session or session.get("projectId") != project_id:
+        raise ValueError(f"KNOWLEDGE_CODEX_SESSION_NOT_FOUND: {session_id}")
+    server: CodexAppServer = session["server"]
+    events = server.poll_events()
+    if (
+        not session.get("diffEmitted")
+        and any(event.get("type") in {"exited", "error"} for event in events)
+    ):
+        session["diffEmitted"] = True
+        preview = repo_diff(project_id)
+        events.append({"type": "preview", "sequence": 10_000_000, **preview})
+    return events
+
+
+async def _knowledge_repo_codex_respond(project_id: str, session_id: str, decision: dict) -> dict:
+    session = _knowledge_codex_sessions.get(session_id)
+    if not session or session.get("projectId") != project_id:
+        raise ValueError(f"KNOWLEDGE_CODEX_SESSION_NOT_FOUND: {session_id}")
+    server: CodexAppServer = session["server"]
+    await server.respond(int(decision.get("requestId")), decision.get("decision", ""))
+    return {"ok": True}
+
+
+async def _knowledge_repo_codex_cancel(project_id: str, session_id: str) -> dict:
+    session = _knowledge_codex_sessions.pop(session_id, None)
+    if not session or session.get("projectId") != project_id:
+        raise ValueError(f"KNOWLEDGE_CODEX_SESSION_NOT_FOUND: {session_id}")
+    server: CodexAppServer = session["server"]
+    await server.interrupt()
+    await server.close()
+    return {"ok": True}
 
 
 def _knowledge_repo_push(project_id: str) -> dict:

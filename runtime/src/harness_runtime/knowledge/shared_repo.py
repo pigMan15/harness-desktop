@@ -109,12 +109,10 @@ def push_repo(project_id: str) -> dict:
     config = _require_config(project_id)
     path = Path(config["localPath"])
     _require_git_repo(path)
-    inbox = path / "harness-inbox"
-    if inbox.exists():
-        _git(path, "add", "--", "harness-inbox")
-        staged = _git(path, "diff", "--cached", "--quiet", check=False)
-        if staged["returncode"] == 1:
-            _git(path, "commit", "-m", "Promote Harness knowledge")
+    _git(path, "add", "-A")
+    staged = _git(path, "diff", "--cached", "--quiet", check=False)
+    if staged["returncode"] == 1:
+        _git(path, "commit", "-m", "Promote Harness knowledge")
     result = _git(path, "push")
     status = repo_status(project_id)
     status["pushOutput"] = result["stdout"] or result["stderr"]
@@ -155,6 +153,51 @@ def synthesize_preview(project_id: str, project_root: Path, candidate_ids: Itera
         "files": [relative],
         "diff": diff,
         "manualPushCommand": f"git -C \"{path}\" add \"{relative}\" && git -C \"{path}\" commit -m \"Promote Harness knowledge\" && git -C \"{path}\" push",
+    }
+
+
+def synthesis_context(project_id: str, project_root: Path, candidate_ids: Iterable[int]) -> dict:
+    config = _require_config(project_id)
+    path = Path(config["localPath"])
+    _require_git_repo(path)
+    status = repo_status(project_id)
+    if status.get("dirty"):
+        raise ValueError("KNOWLEDGE_REPO_DIRTY: commit, stash, or discard local changes before Codex synthesis")
+    selected_ids = {int(candidate_id) for candidate_id in candidate_ids}
+    if not selected_ids:
+        raise ValueError("KNOWLEDGE_CANDIDATES_REQUIRED")
+
+    accepted = list_candidates_with_content(project_id, project_root, status="accepted")
+    selected = [candidate for candidate in accepted if int(candidate.get("id", 0)) in selected_ids]
+    if len(selected) != len(selected_ids):
+        found = {int(candidate.get("id", 0)) for candidate in selected}
+        missing = sorted(selected_ids - found)
+        raise ValueError(f"ACCEPTED_KNOWLEDGE_CANDIDATE_NOT_FOUND: {missing}")
+
+    return {
+        "repoPath": str(path),
+        "prompt": _render_codex_prompt(project_id, path, selected),
+        "rules": _discover_rules(path),
+        "candidateCount": len(selected),
+    }
+
+
+def repo_diff(project_id: str) -> dict:
+    config = _require_config(project_id)
+    path = Path(config["localPath"])
+    _require_git_repo(path)
+    diff = _git(path, "diff", check=False)["stdout"]
+    untracked = _git(path, "ls-files", "--others", "--exclude-standard", check=False)["stdout"]
+    for relative in [line.strip() for line in untracked.splitlines() if line.strip()]:
+        file_path = path / relative
+        if file_path.is_file():
+            content = file_path.read_text(encoding="utf-8", errors="replace")
+            diff += ("\n" if diff else "") + _render_untracked_diff(relative.replace("\\", "/"), content)
+    return {
+        "ok": True,
+        "repo": repo_status(project_id),
+        "diff": diff,
+        "manualPushCommand": f"git -C \"{path}\" add -A && git -C \"{path}\" commit -m \"Promote Harness knowledge\" && git -C \"{path}\" push",
     }
 
 
@@ -269,6 +312,46 @@ def _render_update_document(project_id: str, repo_root: Path, candidates: list[d
         if content:
             lines.extend(["#### Source artifact", "", content, ""])
     return "\n".join(lines).rstrip() + "\n"
+
+
+def _render_codex_prompt(project_id: str, repo_root: Path, candidates: list[dict]) -> str:
+    candidate_lines: list[str] = []
+    for candidate in candidates:
+        content = str(candidate.get("content") or "").strip()
+        if len(content) > 12000:
+            content = content[:12000] + "\n\n[TRUNCATED]"
+        candidate_lines.extend(
+            [
+                f"## Candidate {candidate.get('id')}: {candidate.get('title') or 'Untitled'}",
+                "",
+                f"- Project: `{project_id}`",
+                f"- Run: `{candidate.get('run_id') or ''}`",
+                f"- Type: `{candidate.get('type') or 'case'}`",
+                f"- Source: `{candidate.get('source') or ''}`",
+                "",
+                "### Summary",
+                "",
+                str(candidate.get("summary") or "").strip(),
+                "",
+                "### Source artifact",
+                "",
+                content or "_No source content available._",
+                "",
+            ]
+        )
+    return (
+        "You are updating a shared knowledge repository from approved Harness knowledge promotion records.\n\n"
+        "Repository instructions:\n"
+        "- Treat the current working directory as the shared knowledge repository.\n"
+        "- Read and follow the repository's own knowledge rules and templates, including AGENTS.md, CLAUDE.md, README.md, .harness files, and any templates you find.\n"
+        "- Use the approved candidates below as the source data.\n"
+        "- Generate or update the appropriate knowledge documents in the repository's existing structure.\n"
+        "- Merge with existing content instead of duplicating the same idea.\n"
+        "- Do not run git push. Do not create a commit. Leave changes in the local working tree for Harness Desktop to preview.\n"
+        "- If the correct destination is ambiguous, create a clearly named draft under harness-inbox/ and explain the ambiguity in that draft.\n\n"
+        "Approved Harness knowledge candidates:\n\n"
+        + "\n".join(candidate_lines)
+    )
 
 
 def _render_untracked_diff(relative_path: str, content: str) -> str:

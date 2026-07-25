@@ -1,6 +1,9 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { ProjectRequired, useWorkspace } from '../layout/WorkspaceContext'
 import { MarkdownPreview } from '../artifacts/ArtifactsPage'
+
+interface KnowledgeLogEntry { type: string; sequence: number; content?: string; error?: string; tool?: string; params?: Record<string, unknown>; message?: string; category?: string; requestId?: number; diff?: string; repo?: any; manualPushCommand?: string }
+const DANGEROUS = new Set(['deploy', 'delete', 'dangerous_git'])
 
 function KnowledgeContent(): React.ReactElement {
   const { selectedProjectId } = useWorkspace()
@@ -11,7 +14,13 @@ function KnowledgeContent(): React.ReactElement {
   const [repo, setRepo] = useState<any>({ configured: false })
   const [repoForm, setRepoForm] = useState({ localPath: '', remoteUrl: '', branch: '' })
   const [preview, setPreview] = useState<any>(null)
+  const [codexLogs, setCodexLogs] = useState<KnowledgeLogEntry[]>([])
+  const [codexRunning, setCodexRunning] = useState(false)
+  const [codexSessionId, setCodexSessionId] = useState('')
+  const [pendingApproval, setPendingApproval] = useState<KnowledgeLogEntry>()
+  const [confirmDangerous, setConfirmDangerous] = useState(false)
   const [msg, setMsg] = useState('')
+  const timer = useRef<ReturnType<typeof setInterval>>()
 
   useEffect(() => {
     setMsg('')
@@ -33,6 +42,8 @@ function KnowledgeContent(): React.ReactElement {
       }
     }).catch(() => {})
   }, [selectedProjectId])
+
+  useEffect(() => () => { if (timer.current) clearInterval(timer.current) }, [])
 
   async function review(id: number, decision: string) {
     try {
@@ -78,6 +89,80 @@ function KnowledgeContent(): React.ReactElement {
     } catch (e: any) { setMsg(e.message) }
   }
 
+  function beginCodexPolling(sessionId: string) {
+    if (timer.current) clearInterval(timer.current)
+    timer.current = setInterval(() => { void pollCodex(sessionId) }, 700)
+  }
+
+  async function runCodexSynthesis() {
+    if (!window.harness) return
+    setCodexLogs([])
+    setPendingApproval(undefined)
+    setPreview(null)
+    setMsg('')
+    setCodexRunning(true)
+    try {
+      const r = await window.harness.startKnowledgeCodexSynthesis(selectedProjectId, selectedIds)
+      if (r?.error || !r?.sessionId) throw new Error(String(r?.error || 'Codex synthesis start failed'))
+      const id = String(r.sessionId)
+      setCodexSessionId(id)
+      setMsg(`Codex synthesis started for ${r.candidateCount || selectedIds.length} accepted candidate(s).`)
+      beginCodexPolling(id)
+    } catch (e: any) {
+      setCodexRunning(false)
+      setMsg(e.message)
+    }
+  }
+
+  async function pollCodex(sessionId: string) {
+    if (!window.harness) return
+    try {
+      const result = await window.harness.pollKnowledgeCodexSynthesis(selectedProjectId, sessionId)
+      if (!Array.isArray(result) || result.length === 0) return
+      const events = result as KnowledgeLogEntry[]
+      setCodexLogs(current => {
+        const keys = new Set(current.map(entry => `${entry.type}:${entry.sequence}`))
+        return [...current, ...events.filter(entry => !keys.has(`${entry.type}:${entry.sequence}`))]
+      })
+      const approval = events.find(entry => entry.type === 'approval_required')
+      if (approval) setPendingApproval(approval)
+      const previewEvent = events.find(entry => entry.type === 'preview')
+      if (previewEvent) {
+        setPreview(previewEvent)
+        setRepo(previewEvent.repo || repo)
+      }
+      if (events.some(entry => entry.type === 'exited' || entry.type === 'error')) {
+        setCodexRunning(false)
+        if (timer.current) clearInterval(timer.current)
+      }
+    } catch (e: any) {
+      setCodexRunning(false)
+      setMsg(e.message)
+      if (timer.current) clearInterval(timer.current)
+    }
+  }
+
+  async function respondCodex(decision: 'allow_once' | 'allow_session' | 'deny' | 'cancel') {
+    if (!window.harness || !codexSessionId || pendingApproval?.requestId === undefined) return
+    if (decision === 'allow_once' && DANGEROUS.has(pendingApproval.category || '') && !confirmDangerous) {
+      setConfirmDangerous(true)
+      return
+    }
+    try {
+      await window.harness.respondKnowledgeCodexSynthesis(selectedProjectId, codexSessionId, { requestId: pendingApproval.requestId, decision })
+      setPendingApproval(undefined)
+      setConfirmDangerous(false)
+    } catch (e: any) { setMsg(e.message) }
+  }
+
+  async function cancelCodex() {
+    if (!window.harness || !codexSessionId) return
+    if (timer.current) clearInterval(timer.current)
+    setCodexRunning(false)
+    try { await window.harness.cancelKnowledgeCodexSynthesis(selectedProjectId, codexSessionId) }
+    catch (e: any) { setMsg(e.message) }
+  }
+
   async function pushRepo() {
     try {
       const r = await window.harness!.pushKnowledgeRepo(selectedProjectId)
@@ -112,7 +197,9 @@ function KnowledgeContent(): React.ReactElement {
         <div className="knowledge-repo-actions">
           <button className="button" onClick={configureRepo}>Save</button>
           <button className="button" onClick={pullRepo} disabled={!repo.configured}>Pull / Clone</button>
-          <button className="button primary" onClick={synthesizeRepo} disabled={!repo.configured || selectedIds.length === 0}>Generate Preview</button>
+          <button className="button primary" onClick={runCodexSynthesis} disabled={codexRunning || !repo.configured || selectedIds.length === 0}>Run Codex Synthesis</button>
+          <button className="button" onClick={synthesizeRepo} disabled={codexRunning || !repo.configured || selectedIds.length === 0}>Prepare Draft</button>
+          <button className="button danger" onClick={cancelCodex} disabled={!codexRunning}>Stop Codex</button>
           <button className="button success" onClick={pushRepo} disabled={!repo.configured || !repo.dirty}>Push via App</button>
         </div>
         {repo.configured && <div className="knowledge-repo-status">
@@ -128,6 +215,22 @@ function KnowledgeContent(): React.ReactElement {
             {preview.manualPushCommand && <code>{preview.manualPushCommand}</code>}
           </div>
           <pre>{preview.diff}</pre>
+        </div>}
+        {(codexLogs.length > 0 || codexSessionId) && <div className="knowledge-codex-panel">
+          <div className="knowledge-preview-head">
+            <strong>Codex synthesis</strong>
+            {codexSessionId && <code>{codexSessionId}</code>}
+          </div>
+          {pendingApproval && <div className={`notice ${confirmDangerous ? 'error' : ''}`}>
+            <strong>{confirmDangerous ? 'SECOND CONFIRMATION REQUIRED' : `${pendingApproval.category || 'external'} approval`}</strong>
+            <div style={{ margin: '6px 0' }}>{pendingApproval.message}</div>
+            <div className="actions">
+              <button className="button primary" onClick={() => void respondCodex('allow_once')}>{confirmDangerous ? 'Confirm allow' : 'Allow once'}</button>
+              <button className="button" onClick={() => void respondCodex('allow_session')}>Allow session</button>
+              <button className="button danger" onClick={() => void respondCodex('deny')}>Deny</button>
+            </div>
+          </div>}
+          <pre>{codexLogs.length === 0 ? 'Waiting for Codex events...' : codexLogs.map(entry => `${String(entry.sequence).padStart(3, '0')} ${entry.type} ${entry.content || entry.error || entry.message || (entry.tool ? `${entry.tool} ${JSON.stringify(entry.params || {})}` : '')}`).join('\n')}</pre>
         </div>}
       </section>
       <div className="knowledge-tabs">

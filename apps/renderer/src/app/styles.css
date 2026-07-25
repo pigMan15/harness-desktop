@@ -112,6 +112,8 @@ button:disabled { cursor: not-allowed; opacity: .5; }
 .knowledge-preview-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .knowledge-preview-head code { max-width: 60%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #5f6368; font-size: 11px; }
 .knowledge-preview pre { max-height: 320px; margin: 0; overflow: auto; padding: 12px; border: 1px solid #dfe3e8; border-radius: 10px; background: #0f172a; color: #dbeafe; font-size: 12px; line-height: 1.45; }
+.knowledge-codex-panel { display: grid; gap: 10px; min-width: 0; padding-top: 4px; }
+.knowledge-codex-panel pre { max-height: 260px; margin: 0; overflow: auto; padding: 12px; border: 1px solid #dfe3e8; border-radius: 10px; background: #17181a; color: #e8eaed; font-size: 12px; line-height: 1.55; }
 .knowledge-tabs { display: inline-flex; gap: 3px; margin: 0 0 20px; padding: 3px; border: 1px solid #d9dce1; border-radius: 8px; background: #fff; }
 .knowledge-tabs button { min-height: 34px; padding: 0 16px; border: 0; border-radius: 6px; background: transparent; color: #5f6368; cursor: pointer; }
 .knowledge-tabs button.active { background: #1769aa; color: #fff; font-weight: 650; }
