@@ -16,6 +16,46 @@ _INITIAL_RUNTIME_MARKERS = {
     "phases/.gitkeep",
     "phases/local-initial/.gitkeep",
 }
+_ROOT_GUIDE_START = "<!-- HARNESS ROOT GUIDE START -->"
+_ROOT_GUIDE_END = "<!-- HARNESS ROOT GUIDE END -->"
+_ROOT_GUIDES = {
+    "AGENTS.md": """# 项目 Harness 入口
+
+本项目使用 `.harness/` 作为 AI Coding 工程化流程的唯一事实来源。
+
+## 硬性约束
+
+1. 涉及源码变更、构建、测试、部署或问题排查的任务必须经过 harness。
+2. `intent` 和 `risk` 以 `.harness/state.json` 或用户创建 run 时的选择为准。
+3. 不得跳过 dispatcher 路由出的必需节点。
+4. 阶段产物必须写入当前 `state.phase_dir`。
+5. 门禁结果必须由对应验证角色记录，不能口头替代。
+
+## 标准入口
+
+每次开始非简单任务时，先读取：
+
+- `.harness/state.json`
+- `.harness/workflow.yaml`
+- `.harness/agents/dispatcher.md`
+
+然后按 dispatcher 给出的节点和角色继续。
+""",
+    "CLAUDE.md": """# Claude Code Harness 入口
+
+本文件是 `AGENTS.md` 的 Claude Code 版本。真正的流程事实来源是 `.harness/`。
+
+## 使用规则
+
+- 非简单任务必须走 harness。
+- 不自行覆盖 `intent` / `risk`。
+- 不跳过 dispatcher 指定节点。
+- 阶段产物写入当前 `state.phase_dir`。
+- 门禁和状态变更必须有文件记录。
+
+请优先读取 `.harness/state.json`、`.harness/workflow.yaml` 和 `.harness/agents/dispatcher.md`。
+""",
+}
 
 
 def get_template_root() -> Path:
@@ -75,8 +115,9 @@ def list_missing_files(project_root: Path) -> list[str]:
         raise ValueError(f"HARNESS_SYMLINK_REJECTED: {harness_dir}")
     if harness_dir.exists() and not harness_dir.is_dir():
         raise ValueError(f"HARNESS_PATH_INVALID: {harness_dir} is not a directory")
+    root_missing = _missing_root_guides(root)
     if not harness_dir.exists():
-        return sorted(expected_files())
+        return sorted([*expected_files(), *root_missing])
 
     missing: list[str] = []
     for relative in _expected_for_existing_harness(harness_dir):
@@ -85,7 +126,7 @@ def list_missing_files(project_root: Path) -> list[str]:
             raise ValueError(f"HARNESS_SYMLINK_REJECTED: {target}")
         if not target.is_file():
             missing.append(relative)
-    return missing
+    return sorted([*missing, *root_missing])
 
 
 def apply_bootstrap(project_root: Path, decision: str) -> dict[str, list[str]]:
@@ -109,6 +150,9 @@ def apply_bootstrap(project_root: Path, decision: str) -> dict[str, list[str]]:
 
     files = expected_files() if not existed_before else _expected_for_existing_harness(harness_dir)
     created_files: list[str] = []
+    created_root_files: list[str] = []
+    updated_root_files: list[str] = []
+    root_update_originals: dict[str, bytes] = {}
     created_dirs: list[str] = []
     if not existed_before:
         # ProjectLock 会先创建 .harness；失败回滚时只能清理本次创建的目录。
@@ -129,11 +173,30 @@ def apply_bootstrap(project_root: Path, decision: str) -> dict[str, list[str]]:
                 content = _generated_content(relative) if source is None else source.read_bytes()
                 if _create_exclusive(target, content):
                     created_files.append(relative)
+            for relative, content in _ROOT_GUIDES.items():
+                target = _safe_root_target(root, relative)
+                if target.exists():
+                    if not target.is_file():
+                        raise ValueError(f"HARNESS_ROOT_TARGET_NOT_FILE: {target}")
+                    original = target.read_bytes()
+                    merged = _merge_root_guide(original.decode("utf-8"), content).encode("utf-8")
+                    if merged != original:
+                        root_update_originals[relative] = original
+                        target.write_bytes(merged)
+                        updated_root_files.append(relative)
+                    continue
+                if _create_exclusive(target, _managed_root_guide(content).encode("utf-8")):
+                    created_root_files.append(relative)
     except Exception:
-        _rollback(root, created_files, created_dirs)
+        _rollback(root, created_files, created_dirs, created_root_files, root_update_originals)
         raise
 
-    return {"createdFiles": created_files, "createdDirs": created_dirs}
+    return {
+        "createdFiles": created_files,
+        "createdDirs": created_dirs,
+        "createdRootFiles": created_root_files,
+        "updatedRootFiles": updated_root_files,
+    }
 
 
 def rollback_bootstrap(project_root: Path, operation: dict[str, list[str]]) -> None:
@@ -142,6 +205,7 @@ def rollback_bootstrap(project_root: Path, operation: dict[str, list[str]]) -> N
         project_root.resolve(),
         operation.get("createdFiles", []),
         operation.get("createdDirs", []),
+        operation.get("createdRootFiles", []),
     )
 
 
@@ -224,6 +288,53 @@ def _safe_target(harness_dir: Path, relative: str) -> Path:
     return target
 
 
+def _safe_root_target(root: Path, relative: str) -> Path:
+    if relative not in _ROOT_GUIDES:
+        raise ValueError(f"HARNESS_ROOT_TEMPLATE_UNKNOWN: {relative}")
+    target = root / relative
+    if _is_link(target):
+        raise ValueError(f"HARNESS_SYMLINK_REJECTED: {target}")
+    return target
+
+
+def _missing_root_guides(root: Path) -> list[str]:
+    missing: list[str] = []
+    for relative, content in _ROOT_GUIDES.items():
+        target = _safe_root_target(root, relative)
+        if not target.is_file() or _root_guide_needs_update(target, content):
+            missing.append(relative)
+    return missing
+
+
+def _managed_root_guide(content: str) -> str:
+    return f"{_ROOT_GUIDE_START}\n{content.rstrip()}\n{_ROOT_GUIDE_END}\n"
+
+
+def _merge_root_guide(existing: str, content: str) -> str:
+    managed = _managed_root_guide(content).rstrip()
+    start = existing.find(_ROOT_GUIDE_START)
+    end = existing.find(_ROOT_GUIDE_END)
+    if start >= 0 and end >= start:
+        end += len(_ROOT_GUIDE_END)
+        merged = f"{existing[:start]}{managed}{existing[end:]}"
+        return _ensure_trailing_newline(merged)
+    separator = "\n\n" if existing.strip() else ""
+    return _ensure_trailing_newline(f"{existing.rstrip()}{separator}{managed}")
+
+
+def _root_guide_needs_update(target: Path, content: str) -> bool:
+    if _is_link(target):
+        raise ValueError(f"HARNESS_SYMLINK_REJECTED: {target}")
+    if not target.is_file():
+        return True
+    existing = target.read_text(encoding="utf-8")
+    return _merge_root_guide(existing, content) != existing
+
+
+def _ensure_trailing_newline(content: str) -> str:
+    return content if content.endswith("\n") else f"{content}\n"
+
+
 def _create_parent_directories(harness_dir: Path, parent: Path, created_dirs: list[str]) -> None:
     missing: list[Path] = []
     current = parent
@@ -253,8 +364,28 @@ def _create_exclusive(target: Path, content: bytes) -> bool:
     return True
 
 
-def _rollback(root: Path, created_files: list[str], created_dirs: list[str]) -> None:
+def _rollback(
+    root: Path,
+    created_files: list[str],
+    created_dirs: list[str],
+    created_root_files: list[str] | None = None,
+    root_update_originals: dict[str, bytes] | None = None,
+) -> None:
     harness_dir = root / ".harness"
+    for relative, original in (root_update_originals or {}).items():
+        target = root / relative
+        try:
+            if target.is_file() and not _is_link(target):
+                target.write_bytes(original)
+        except FileNotFoundError:
+            pass
+    for relative in reversed(created_root_files or []):
+        target = root / relative
+        try:
+            if target.is_file() and not _is_link(target):
+                target.unlink()
+        except FileNotFoundError:
+            pass
     for relative in reversed(created_files):
         target = harness_dir / relative
         try:

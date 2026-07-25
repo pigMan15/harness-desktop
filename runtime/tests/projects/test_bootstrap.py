@@ -48,7 +48,53 @@ def test_missing_files_does_not_create_a_harness_directory():
         missing = list_missing_files(root)
 
         assert missing
+        assert "AGENTS.md" in missing
+        assert "CLAUDE.md" in missing
         assert not (root / ".harness").exists()
+
+
+def test_initialization_creates_root_agent_guides(tmp_path):
+    result = apply_bootstrap(tmp_path, "initialize")
+
+    assert "AGENTS.md" in result["createdRootFiles"]
+    assert "CLAUDE.md" in result["createdRootFiles"]
+    assert (tmp_path / "AGENTS.md").is_file()
+    assert (tmp_path / "CLAUDE.md").is_file()
+    assert ".harness/" in (tmp_path / "AGENTS.md").read_text(encoding="utf-8")
+
+
+def test_existing_root_agent_guides_are_merged_without_overwriting_custom_content(tmp_path):
+    (tmp_path / "AGENTS.md").write_text("custom agents", encoding="utf-8")
+
+    result = apply_bootstrap(tmp_path, "initialize")
+
+    assert "AGENTS.md" not in result["createdRootFiles"]
+    assert "AGENTS.md" in result["updatedRootFiles"]
+    assert "CLAUDE.md" in result["createdRootFiles"]
+    agents = (tmp_path / "AGENTS.md").read_text(encoding="utf-8")
+    assert agents.startswith("custom agents")
+    assert "HARNESS ROOT GUIDE START" in agents
+    assert ".harness/state.json" in agents
+
+
+def test_existing_root_agent_guides_replace_managed_block(tmp_path):
+    (tmp_path / "AGENTS.md").write_text(
+        "custom agents\n\n"
+        "<!-- HARNESS ROOT GUIDE START -->\n"
+        "old managed guide\n"
+        "<!-- HARNESS ROOT GUIDE END -->\n",
+        encoding="utf-8",
+    )
+
+    missing = list_missing_files(tmp_path)
+    result = apply_bootstrap(tmp_path, "initialize")
+
+    agents = (tmp_path / "AGENTS.md").read_text(encoding="utf-8")
+    assert "AGENTS.md" in missing
+    assert "AGENTS.md" in result["updatedRootFiles"]
+    assert "custom agents" in agents
+    assert "old managed guide" not in agents
+    assert agents.count("HARNESS ROOT GUIDE START") == 1
 
 
 def test_existing_state_does_not_require_local_initial_runtime_files(tmp_path):
