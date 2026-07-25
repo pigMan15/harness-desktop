@@ -860,9 +860,10 @@ async def _knowledge_repo_codex_start(
     context = synthesis_context(project_id, project_root, candidate_ids, allow_dirty=allow_dirty)
     server = CodexAppServer(capability.path, Path(context["repoPath"]))
     developer_instructions = (
-        "You are running inside Harness Desktop's Knowledge module. "
-        "Update only the shared knowledge repository working tree. "
-        "Never push, never commit, and wait for user approval for file changes."
+        "你正在 Harness Desktop 的 Knowledge 模块中运行。"
+        "请使用中文进行分析和回复。"
+        "只允许更新共享知识库本地 Git 仓库的 working tree。"
+        "不要 push，不要 commit；文件修改需要等待用户审批。"
     )
     await server.start(context["prompt"], developer_instructions=developer_instructions)
     session_id = f"knowledge-codex-{uuid.uuid4().hex[:12]}"

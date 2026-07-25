@@ -368,16 +368,17 @@ def _render_codex_prompt(project_id: str, repo_root: Path, candidates: list[dict
             ]
         )
     return (
-        "You are updating a shared knowledge repository from approved Harness knowledge promotion records.\n\n"
-        "Repository instructions:\n"
-        "- Treat the current working directory as the shared knowledge repository.\n"
-        "- Read and follow the repository's own knowledge rules and templates, including AGENTS.md, CLAUDE.md, README.md, .harness files, and any templates you find.\n"
-        "- Use the approved candidates below as the source data.\n"
-        "- Generate or update the appropriate knowledge documents in the repository's existing structure.\n"
-        "- Merge with existing content instead of duplicating the same idea.\n"
-        "- Do not run git push. Do not create a commit. Leave changes in the local working tree for Harness Desktop to preview.\n"
-        "- If the correct destination is ambiguous, create a clearly named draft under harness-inbox/ and explain the ambiguity in that draft.\n\n"
-        "Approved Harness knowledge candidates:\n\n"
+        "你正在根据已审批通过的 Harness 知识沉淀记录，更新一个共享知识库。\n\n"
+        "请全程使用中文进行分析、说明和生成内容，除非共享知识库模板明确要求使用其它语言。\n\n"
+        "知识库工作要求：\n"
+        "- 当前工作目录就是共享知识库本地 Git 仓库。\n"
+        "- 请先阅读并遵循仓库自己的知识规则和模板，包括 AGENTS.md、CLAUDE.md、README.md、.harness 文件，以及你能找到的其它模板。\n"
+        "- 以下已审批候选记录是本次更新的数据源。\n"
+        "- 请根据仓库现有结构，生成或更新对应的知识文档。\n"
+        "- 如果已有相同或相近知识，请合并更新，不要重复堆叠。\n"
+        "- 不要执行 git push，不要创建 commit。只把改动留在本地 working tree，交给 Harness Desktop 预览。\n"
+        "- 如果无法判断应该更新哪个目标文档，请在 harness-inbox/ 下创建清晰命名的草稿，并在草稿中说明不确定点。\n\n"
+        "已审批通过的 Harness 知识候选记录：\n\n"
         + "\n".join(candidate_lines)
     )
 
