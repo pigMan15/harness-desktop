@@ -1,5 +1,6 @@
 """Git worktree lifecycle for concurrently executing Runs."""
 
+import shutil
 import subprocess
 from pathlib import Path
 
@@ -57,8 +58,29 @@ def ensure_run_worktree(project_root: Path, run_id: str) -> dict[str, str]:
 
     if not project_worktree.is_dir():
         raise WorktreeUnavailable(f"WORKTREE_PROJECT_PATH_MISSING: {project_worktree}")
+    _sync_harness_metadata(root, project_worktree)
     return {
         "branch_name": branch_name,
         "worktree_path": str(project_worktree),
         "worktree_status": "ready",
     }
+
+
+def _sync_harness_metadata(source_root: Path, target_root: Path) -> None:
+    """Ensure Codex guidance files exist in the run worktree.
+
+    Git worktrees are created from committed HEAD and cannot see import-time staged or
+    untracked Harness files. Copy missing Harness metadata so terminal sessions launched in
+    the run worktree still receive `.harness`, `AGENTS.md`, and `CLAUDE.md` guidance.
+    """
+    for relative in (".harness", "AGENTS.md", "CLAUDE.md"):
+        source = source_root / relative
+        target = target_root / relative
+        if not source.exists() or target.exists():
+            continue
+        if source.is_symlink():
+            raise WorktreeUnavailable(f"HARNESS_SYNC_SYMLINK_REJECTED: {source}")
+        if source.is_dir():
+            shutil.copytree(source, target, symlinks=False)
+        elif source.is_file():
+            shutil.copy2(source, target)
