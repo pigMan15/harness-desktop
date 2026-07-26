@@ -34,8 +34,10 @@ except Exception:
 
 from ..executors.codex.adapter import CodexAdapter
 from ..executors.codex.app_server import CodexAppServer
+from ..executors.claude.adapter import ClaudeAdapter
 
 _codex_adapter = CodexAdapter(os.environ.get("HARNESS_CODEX_PATH", "codex"))
+_claude_adapter = ClaudeAdapter(os.environ.get("HARNESS_CLAUDE_PATH", "claude"))
 _knowledge_codex_sessions: dict[str, dict[str, Any]] = {}
 
 
@@ -112,6 +114,10 @@ async def _dispatch(method: str, params: dict) -> Any:
     if method == "run.archive":
         return _run_archive(
             project_id, project_root, params.get("runId", ""), params.get("expectedRevision")
+        )
+    if method == "run.mergeBackPreflight":
+        return _run_merge_back_preflight(
+            project_root, params.get("runId", ""), params.get("expectedRevision")
         )
     if method == "run.mergeBack":
         return _run_merge_back(
@@ -204,6 +210,9 @@ async def _dispatch(method: str, params: dict) -> Any:
             project_root,
             params.get("candidateIds", []),
             bool(params.get("allowDirty", False)),
+            bool(params.get("allowRepeat", True)),
+            params.get("provider", "codex"),
+            params.get("executablePath", ""),
         )
     if method == "knowledge.repo.codex.active":
         return _knowledge_repo_codex_active(project_id)
@@ -216,12 +225,12 @@ async def _dispatch(method: str, params: dict) -> Any:
     if method == "knowledge.repo.codex.cancel":
         return await _knowledge_repo_codex_cancel(project_id, params.get("sessionId", ""))
     if method == "knowledge.repo.push":
-        return _knowledge_repo_push(project_id, params.get("candidateIds", []))
+        return _knowledge_repo_push(project_id, params.get("candidateIds", []), bool(params.get("allowRepeat", True)))
     if method == "execution.probe":
-        return await _execution_probe()
+        return await _execution_probe(params.get("provider", "codex"), params.get("executablePath", ""))
     if method == "execution.start":
         return await _execution_start(
-            project_id, project_root, params.get("runId", ""), params.get("expectedRevision")
+            project_id, project_root, params.get("runId", ""), params.get("expectedRevision"), params.get("provider", "codex"), params.get("executablePath", "")
         )
     if method == "execution.poll":
         return _execution_poll(project_id, params.get("runId", ""), params.get("sessionId", ""))
@@ -235,6 +244,8 @@ async def _dispatch(method: str, params: dict) -> Any:
         return _recovery_scan(project_id)
     if method == "recovery.cleanup":
         return _recovery_cleanup(project_root)
+    if method == "recovery.archive":
+        return _recovery_archive(project_id, params.get("sessionId", ""))
     raise ValueError(f"Unknown method: {method}")
 
 
@@ -365,6 +376,14 @@ def _run_archive(
 
     state, revision = archive_run(project_root, run_id, expected_revision)
     return {"run": state, "revision": revision}
+
+
+def _run_merge_back_preflight(
+    project_root: Path, run_id: str, expected_revision: str | None
+) -> dict:
+    from ..runs.service import preflight_run_merge_back
+
+    return preflight_run_merge_back(project_root, run_id, expected_revision)
 
 
 def _run_merge_back(project_root: Path, run_id: str, expected_revision: str | None) -> dict:
@@ -855,13 +874,41 @@ async def _knowledge_repo_codex_start(
     project_root: Path,
     candidate_ids: list[int],
     allow_dirty: bool,
+    allow_repeat: bool,
+    provider: str = "codex",
+    executable_path: str = "",
 ) -> dict:
     from ..knowledge.shared_repo import synthesis_context
 
-    capability = await _codex_adapter.probe()
+    adapter = _execution_adapter(provider, executable_path)
+    capability = await adapter.probe()
     if not capability.available or not capability.path:
-        raise RuntimeError(capability.diagnostics or "CODEX_UNAVAILABLE")
-    context = synthesis_context(project_id, project_root, candidate_ids, allow_dirty=allow_dirty)
+        raise RuntimeError(capability.diagnostics or f"{provider.upper()}_UNAVAILABLE")
+    context = synthesis_context(project_id, project_root, candidate_ids, allow_dirty=allow_dirty, allow_repeat=allow_repeat)
+    if provider == "claude":
+        instructions = (
+            "你正在 Harness Desktop 的 Knowledge 模块中运行。请使用中文分析和回复。"
+            "在 Windows PowerShell 中读写文本时显式使用 UTF-8。"
+            "只更新共享知识库本地 working tree，不要 commit，不要 push，完成后等待用户审核。"
+        )
+        session_id = await adapter.start_prompt(context["repoPath"], context["prompt"], instructions)
+        info = adapter.session_info(session_id)
+        _knowledge_codex_sessions[session_id] = {
+            "adapter": adapter,
+            "provider": provider,
+            "projectId": project_id,
+            "repoPath": context["repoPath"],
+            "diffEmitted": False,
+            "candidateIds": context["candidateIds"],
+        }
+        return {
+            "sessionId": session_id,
+            "provider": provider,
+            "candidateCount": context["candidateCount"],
+            "candidateIds": context["candidateIds"],
+            "rules": context["rules"],
+            **info,
+        }
     server = CodexAppServer(capability.path, Path(context["repoPath"]))
     developer_instructions = (
         "你正在 Harness Desktop 的 Knowledge 模块中运行。"
@@ -893,6 +940,17 @@ async def _knowledge_repo_codex_start(
 def _knowledge_repo_codex_active(project_id: str) -> dict:
     for session_id, session in reversed(_knowledge_codex_sessions.items()):
         if session.get("projectId") == project_id and not session.get("diffEmitted"):
+            if session.get("provider") == "claude":
+                adapter: ClaudeAdapter = session["adapter"]
+                info = adapter.session_info(session_id)
+                return {
+                    "active": True,
+                    "sessionId": session_id,
+                    "provider": "claude",
+                    "approvals": [],
+                    "candidateIds": session.get("candidateIds", []),
+                    **info,
+                }
             server: CodexAppServer = session["server"]
             return {
                 "active": True,
@@ -912,8 +970,12 @@ def _knowledge_repo_codex_poll(project_id: str, session_id: str) -> list[dict]:
     session = _knowledge_codex_sessions.get(session_id)
     if not session or session.get("projectId") != project_id:
         raise ValueError(f"KNOWLEDGE_CODEX_SESSION_NOT_FOUND: {session_id}")
-    server: CodexAppServer = session["server"]
-    events = server.poll_events()
+    if session.get("provider") == "claude":
+        adapter: ClaudeAdapter = session["adapter"]
+        events = adapter.poll(session_id)
+    else:
+        server: CodexAppServer = session["server"]
+        events = server.poll_events()
     if (
         not session.get("diffEmitted")
         and any(event.get("type") in {"exited", "error"} for event in events)
@@ -928,8 +990,12 @@ async def _knowledge_repo_codex_respond(project_id: str, session_id: str, decisi
     session = _knowledge_codex_sessions.get(session_id)
     if not session or session.get("projectId") != project_id:
         raise ValueError(f"KNOWLEDGE_CODEX_SESSION_NOT_FOUND: {session_id}")
-    server: CodexAppServer = session["server"]
-    await server.respond(int(decision.get("requestId")), decision.get("decision", ""))
+    if session.get("provider") == "claude":
+        adapter: ClaudeAdapter = session["adapter"]
+        await adapter.respond(session_id, decision)
+    else:
+        server: CodexAppServer = session["server"]
+        await server.respond(int(decision.get("requestId")), decision.get("decision", ""))
     return {"ok": True}
 
 
@@ -952,9 +1018,20 @@ async def _knowledge_repo_codex_feedback(project_id: str, session_id: str, feedb
         f"用户反馈：\n{user_feedback}\n\n"
         f"当前 Git diff：\n{current_diff or '_当前没有可见 diff_'}\n"
     )
-    server: CodexAppServer = session["server"]
+    prompt = (
+        "用户正在审核你对共享知识库本地仓库生成的修改。\n\n"
+        "请根据用户反馈继续修改 working tree，不要 commit，不要 push。\n"
+        "完成后用中文简要说明修改内容。\n\n"
+        f"用户反馈：\n{user_feedback}\n\n"
+        f"当前 Git diff：\n{current_diff or '_当前没有可见 diff_'}\n"
+    )
     session["diffEmitted"] = False
-    await server.send_message(prompt)
+    if session.get("provider") == "claude":
+        adapter: ClaudeAdapter = session["adapter"]
+        await adapter.send_message(session_id, prompt)
+    else:
+        server: CodexAppServer = session["server"]
+        await server.send_message(prompt)
     return {"ok": True, "sessionId": session_id}
 
 
@@ -962,15 +1039,19 @@ async def _knowledge_repo_codex_cancel(project_id: str, session_id: str) -> dict
     session = _knowledge_codex_sessions.pop(session_id, None)
     if not session or session.get("projectId") != project_id:
         raise ValueError(f"KNOWLEDGE_CODEX_SESSION_NOT_FOUND: {session_id}")
-    server: CodexAppServer = session["server"]
-    await server.interrupt()
-    await server.close()
+    if session.get("provider") == "claude":
+        adapter: ClaudeAdapter = session["adapter"]
+        await adapter.cancel(session_id)
+    else:
+        server: CodexAppServer = session["server"]
+        await server.interrupt()
+        await server.close()
     return {"ok": True}
 
 
-def _knowledge_repo_push(project_id: str, candidate_ids: list[int]) -> dict:
+def _knowledge_repo_push(project_id: str, candidate_ids: list[int], allow_repeat: bool = True) -> dict:
     from ..knowledge.shared_repo import push_repo
-    return push_repo(project_id, candidate_ids)
+    return push_repo(project_id, candidate_ids, allow_repeat=allow_repeat)
 
 
 def _get_phase_dir(project_root: Path, run_id: str):
@@ -999,9 +1080,24 @@ def _get_phase_dir(project_root: Path, run_id: str):
     return None
 
 
-async def _execution_probe() -> dict:
-    capability = await _codex_adapter.probe()
+def _execution_adapter(provider: str, executable_path: str = ""):
+    global _codex_adapter, _claude_adapter
+    if provider == "codex":
+        if executable_path and getattr(_codex_adapter, "_codex_path", "") != executable_path:
+            _codex_adapter = CodexAdapter(executable_path)
+        return _codex_adapter
+    if provider == "claude":
+        if executable_path and getattr(_claude_adapter, "_claude_path", "") != executable_path:
+            _claude_adapter = ClaudeAdapter(executable_path)
+        return _claude_adapter
+    raise ValueError(f"EXECUTOR_PROVIDER_UNKNOWN: {provider}")
+
+
+async def _execution_probe(provider: str = "codex", executable_path: str = "") -> dict:
+    adapter = _execution_adapter(provider, executable_path)
+    capability = await adapter.probe()
     return {
+        "provider": provider,
         "available": capability.available,
         "path": capability.path,
         "version": capability.version,
@@ -1011,14 +1107,15 @@ async def _execution_probe() -> dict:
 
 
 async def _execution_start(
-    project_id: str, project_root: Path, run_id: str, expected_revision: str | None
+    project_id: str, project_root: Path, run_id: str, expected_revision: str | None, provider: str = "codex", executable_path: str = ""
 ) -> dict:
     from ..executors.base import ExecutionRequest
     from ..persistence.database import get_db
     from ..persistence.state_store import read_run_state, write_run_state
     from ..runs.worktrees import ensure_run_worktree
 
-    capability = await _codex_adapter.probe()
+    adapter = _execution_adapter(provider, executable_path)
+    capability = await adapter.probe()
     if not capability.available:
         raise RuntimeError(capability.diagnostics or "CODEX_UNAVAILABLE")
 
@@ -1068,19 +1165,20 @@ async def _execution_start(
         phase_dir=str(phase_dir),
         context={"intent": state.get("intent"), "risk": state.get("risk")},
     )
-    session_id = await _codex_adapter.start(request)
-    info = _codex_adapter.session_info(session_id)
+    session_id = await adapter.start(request)
+    info = adapter.session_info(session_id)
     db = get_db()
     db.execute(
         """INSERT INTO executor_sessions
            (id, project_id, run_id, node_id, executor_type, pid, start_time, status,
             worktree_path, branch_name, thread_id, turn_id)
-           VALUES (?, ?, ?, ?, 'codex', ?, ?, 'active', ?, ?, ?, ?)""",
+           VALUES (?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, ?, ?)""",
         (
             session_id,
             project_id,
             run_id,
             node_id,
+            provider,
             info.get("pid"),
             datetime.now(timezone.utc).isoformat(),
             str(execution_root),
@@ -1119,8 +1217,11 @@ def _require_execution_session(project_id: str, run_id: str, session_id: str):
 def _execution_poll(project_id: str, run_id: str, session_id: str) -> list[dict]:
     from ..persistence.database import get_db
 
-    _require_execution_session(project_id, run_id, session_id)
-    events = _codex_adapter.poll(session_id)
+    row = _require_execution_session(project_id, run_id, session_id)
+    adapter = _execution_adapter(str(row["executor_type"]))
+    if adapter is None:
+        raise ValueError(f"EXECUTOR_SESSION_ADAPTER_UNAVAILABLE: {row['executor_type']}")
+    events = adapter.poll(session_id)
     terminal = next(
         (event for event in reversed(events) if event.get("type") in {"exited", "error"}),
         None,
@@ -1137,16 +1238,22 @@ def _execution_poll(project_id: str, run_id: str, session_id: str) -> list[dict]
 
 
 async def _execution_respond(project_id: str, run_id: str, session_id: str, decision: dict) -> dict:
-    _require_execution_session(project_id, run_id, session_id)
-    await _codex_adapter.respond(session_id, decision)
+    row = _require_execution_session(project_id, run_id, session_id)
+    adapter = _execution_adapter(str(row["executor_type"]))
+    if adapter is None:
+        raise ValueError(f"EXECUTOR_SESSION_ADAPTER_UNAVAILABLE: {row['executor_type']}")
+    await adapter.respond(session_id, decision)
     return {"status": "ok"}
 
 
 async def _execution_cancel(project_id: str, run_id: str, session_id: str) -> dict:
     from ..persistence.database import get_db
 
-    _require_execution_session(project_id, run_id, session_id)
-    await _codex_adapter.cancel(session_id)
+    row = _require_execution_session(project_id, run_id, session_id)
+    adapter = _execution_adapter(str(row["executor_type"]))
+    if adapter is None:
+        raise ValueError(f"EXECUTOR_SESSION_ADAPTER_UNAVAILABLE: {row['executor_type']}")
+    await adapter.cancel(session_id)
     db = get_db()
     db.execute(
         "UPDATE executor_sessions SET status = 'cancelled' WHERE id = ?",
@@ -1164,3 +1271,8 @@ def _recovery_scan(project_id: str) -> list[dict]:
 def _recovery_cleanup(project_root: Path) -> list[str]:
     from ..recovery.service import cleanup_temp_files
     return cleanup_temp_files(project_root)
+
+
+def _recovery_archive(project_id: str, session_id: str) -> dict:
+    from ..recovery.service import archive_stale_session
+    return archive_stale_session(project_id, session_id)

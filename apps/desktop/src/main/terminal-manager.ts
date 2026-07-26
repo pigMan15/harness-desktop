@@ -5,6 +5,8 @@ import type { IDisposable, IPty } from 'node-pty'
 import * as nodePty from 'node-pty'
 
 export type TerminalStatus = 'starting' | 'running' | 'exited' | 'failed' | 'stopped' | 'interrupted'
+export type AiCliProvider = 'codex' | 'claude'
+export type TerminalKind = 'codex' | 'claude' | 'ai' | 'shell'
 
 export interface PtyProcess {
   pid: number
@@ -18,7 +20,8 @@ export interface PtyProcess {
 export interface TerminalCreateRequest {
   projectId: string
   runId: string
-  kind: 'codex' | 'shell'
+  kind: TerminalKind
+  provider?: AiCliProvider
   cols: number
   rows: number
 }
@@ -28,7 +31,8 @@ export interface TerminalSessionSummary {
   projectId: string
   runId: string
   nodeId: string
-  kind: 'codex' | 'shell'
+  kind: TerminalKind
+  provider?: AiCliProvider
   executablePath: string
   cwd: string
   pid?: number
@@ -59,7 +63,7 @@ interface PtySpawnOptions {
 
 interface TerminalManagerDependencies {
   getExecutionContext: (projectId: string, runId: string) => Promise<Record<string, unknown>>
-  resolveExecutable: () => Promise<{ path: string; version: string }>
+  resolveExecutable: (provider: AiCliProvider) => Promise<{ path: string; version: string }>
   spawnPty?: (executable: string, args: string[], options: PtySpawnOptions) => PtyProcess
   updateProjection: (projectId: string, session: TerminalSessionSummary) => Promise<unknown>
   emit: (ownerId: number, channel: 'terminal:data' | 'terminal:exit' | 'terminal:status', payload: Record<string, unknown>) => void
@@ -108,14 +112,15 @@ export class TerminalManager {
     if (active.filter((session) => session.projectId === request.projectId).length >= this.projectLimit) {
       throw new Error('TERMINAL_PROJECT_LIMIT')
     }
-    const executable = request.kind === 'codex'
-      ? await this.dependencies.resolveExecutable()
+    const provider = resolveProvider(request)
+    const executable = provider
+      ? await this.dependencies.resolveExecutable(provider)
       : { path: process.platform === 'win32' ? 'powershell.exe' : (process.env.SHELL || '/bin/sh'), version: '' }
     const sessionId = this.randomId()
     const startedAt = this.now()
     const summary: ManagedSession = {
       sessionId, projectId: request.projectId, runId: request.runId, nodeId,
-      kind: request.kind, executablePath: executable.path, cwd, status: 'starting',
+      kind: request.kind, provider, executablePath: executable.path, cwd, status: 'starting',
       startedAt, cols: clamp(request.cols, 20, 500), rows: clamp(request.rows, 5, 200),
       sequence: 0, summary: '', ownerId, pty: undefined as unknown as PtyProcess, scrollback: '',
       logPath: this.logDirectory ? path.join(this.logDirectory, `${sessionId}.log`) : undefined,
@@ -231,6 +236,12 @@ export class TerminalManager {
     await this.dependencies.updateProjection(session.projectId, summary)
     this.dependencies.emit(session.ownerId, channel, summary as unknown as Record<string, unknown>)
   }
+}
+
+function resolveProvider(request: TerminalCreateRequest): AiCliProvider | undefined {
+  if (request.kind === 'shell') return undefined
+  if (request.kind === 'claude') return 'claude'
+  return request.provider || 'codex'
 }
 
 function controlledEnvironment(request: TerminalCreateRequest, context: Record<string, unknown>): Record<string, string> {

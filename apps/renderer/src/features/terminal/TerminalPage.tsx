@@ -6,6 +6,8 @@ import '@xterm/xterm/css/xterm.css'
 import { Clipboard, Copy, Play, RefreshCw, Search, Square, Trash2 } from 'lucide-react'
 import type { RunSummary, TerminalSessionSummary } from '../../app/harness-api'
 import { ProjectRequired, useWorkspace } from '../layout/WorkspaceContext'
+import { authorizePolicy, loadLocalSettings, policyBlockedMessage } from '../settings/settings-policy'
+import { useLanguage } from '../settings/LanguageContext'
 
 interface ExecutionContext {
   runId: string
@@ -41,8 +43,29 @@ function isTerminalSessionNotFound(cause: unknown): boolean {
   return String(cause instanceof Error ? cause.message : cause).includes('TERMINAL_SESSION_NOT_FOUND')
 }
 
+function terminalBufferText(terminal: Terminal | undefined, recentRows?: number): string {
+  if (!terminal) return ''
+  const buffer = terminal.buffer.active
+  const start = Math.max(0, buffer.length - (recentRows || buffer.length))
+  const lines: string[] = []
+  for (let index = start; index < buffer.length; index += 1) {
+    lines.push(buffer.getLine(index)?.translateToString(true) || '')
+  }
+  return lines.join('\n').replace(/\n+$/g, '')
+}
+
+function formatClock(value?: string): string {
+  if (!value) return '-'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return '-'
+  return date.toLocaleTimeString()
+}
+
 function TerminalContent(): React.ReactElement {
+  const { text } = useLanguage()
   const { selectedProjectId, selectedRun, terminalSessionsById, refreshTerminals, updateActiveRun } = useWorkspace()
+  const defaultAiProvider = useMemo(() => loadLocalSettings().defaultProvider, [])
+  const secondaryAiProvider = defaultAiProvider === 'codex' ? 'claude' : 'codex'
   const hostRef = useRef<HTMLDivElement>(null)
   const terminalRef = useRef<Terminal>()
   const fitRef = useRef<FitAddon>()
@@ -54,6 +77,15 @@ function TerminalContent(): React.ReactElement {
   const [comment, setComment] = useState('')
   const [busy, setBusy] = useState(false)
   const [staleSessionIds, setStaleSessionIds] = useState<Set<string>>(() => new Set())
+  const [lastOutputAt, setLastOutputAt] = useState('')
+  const [autoFollow, setAutoFollow] = useState(true)
+  const [pendingPaste, setPendingPaste] = useState('')
+  const autoFollowRef = useRef(true)
+
+  const setFollowMode = useCallback((enabled: boolean): void => {
+    autoFollowRef.current = enabled
+    setAutoFollow(enabled)
+  }, [])
 
   const matchingSession = useMemo(() => Object.values(terminalSessionsById)
     .filter((item) => item.projectId === selectedProjectId && item.runId === selectedRun?.run_id)
@@ -82,11 +114,22 @@ function TerminalContent(): React.ReactElement {
 
   const pasteClipboardText = useCallback(async (): Promise<void> => {
     try {
-      await writeTerminalText(await navigator.clipboard.readText())
+      const text = await navigator.clipboard.readText()
+      if (text.split(/\r?\n/).filter(Boolean).length > 1) {
+        setPendingPaste(text)
+        return
+      }
+      await writeTerminalText(text)
     } catch (cause) {
       setMessage(cause instanceof Error ? cause.message : 'Clipboard text paste failed')
     }
   }, [writeTerminalText])
+
+  const confirmPendingPaste = useCallback(async (): Promise<void> => {
+    const text = pendingPaste
+    setPendingPaste('')
+    await writeTerminalText(text)
+  }, [pendingPaste, writeTerminalText])
 
   const loadContext = useCallback(async () => {
     if (!window.harness || !selectedRun) { setContext(undefined); return }
@@ -104,7 +147,8 @@ function TerminalContent(): React.ReactElement {
   useEffect(() => {
     if (!hostRef.current) return
     const terminal = new Terminal({
-      convertEol: true, cursorBlink: true, fontFamily: 'Cascadia Mono, Consolas, monospace', fontSize: 13,
+      convertEol: true, cursorBlink: true,
+      fontFamily: '"Cascadia Mono", Consolas, "Microsoft YaHei UI", "Microsoft YaHei", monospace', fontSize: 13,
       theme: { background: '#111315', foreground: '#e8eaed', cursor: '#8ab4f8', selectionBackground: '#3f526b' },
       scrollback: 5000,
     })
@@ -114,6 +158,8 @@ function TerminalContent(): React.ReactElement {
     terminal.loadAddon(searchAddon)
     terminal.attachCustomKeyEventHandler((event) => {
       if (event.type !== 'keydown') return true
+      // Let xterm's composition helper own IME keystrokes (for example, Chinese input).
+      if (event.isComposing || event.key === 'Process' || event.keyCode === 229) return true
       const key = event.key.toLowerCase()
       const pasteShortcut = (key === 'v' && (event.ctrlKey || event.metaKey)) || (event.key === 'Insert' && event.shiftKey)
       if (!pasteShortcut) return true
@@ -122,6 +168,7 @@ function TerminalContent(): React.ReactElement {
       return false
     })
     terminal.open(hostRef.current)
+    terminal.focus()
     terminalRef.current = terminal
     fitRef.current = fitAddon
     searchRef.current = searchAddon
@@ -129,6 +176,7 @@ function TerminalContent(): React.ReactElement {
     let fitReadyAttempts = 0
     let lastTerminalSize = { cols: 0, rows: 0 }
     let replayingScrollback = false
+    let pendingInput = ''
     let disposed = false
     const fitTerminal = () => {
       const bounds = hostRef.current?.getBoundingClientRect()
@@ -154,27 +202,38 @@ function TerminalContent(): React.ReactElement {
     }
     scheduleInitialFit()
     const finishReplay = () => {
-      requestAnimationFrame(() => { replayingScrollback = false })
+      requestAnimationFrame(() => {
+        if (disposed) return
+        replayingScrollback = false
+        const inputAfterReplay = pendingInput
+        pendingInput = ''
+        if (inputAfterReplay) void writeTerminalText(inputAfterReplay)
+        if (autoFollowRef.current) terminal.scrollToBottom()
+        terminal.focus()
+      })
     }
     const input = terminal.onData((data) => {
-      if (replayingScrollback) return
-      if (session?.sessionId) {
-        void window.harness?.writeTerminal(session.sessionId, data).catch((cause) => {
-          if (isTerminalSessionNotFound(cause)) {
-            markTerminalSessionStale(session.sessionId)
-            return
-          }
-          setMessage(cause instanceof Error ? cause.message : 'Terminal write failed')
-        })
+      if (replayingScrollback) {
+        pendingInput += data
+        return
       }
+      void writeTerminalText(data)
     })
     const handlePaste = (event: ClipboardEvent) => {
       const text = event.clipboardData?.getData('text/plain') || ''
       if (!text) return
       event.preventDefault()
+      if (text.split(/\r?\n/).filter(Boolean).length > 1) {
+        setPendingPaste(text)
+        return
+      }
       void writeTerminalText(text)
     }
     hostRef.current.addEventListener('paste', handlePaste)
+    const scrollDisposable = terminal.onScroll(() => {
+      const buffer = terminal.buffer.active
+      setFollowMode(buffer.viewportY + terminal.rows >= buffer.baseY + buffer.length - 1)
+    })
     if (session?.sessionId && window.harness) {
       replayingScrollback = true
       void window.harness.getTerminalScrollback(session.sessionId).then((replay) => {
@@ -216,13 +275,18 @@ function TerminalContent(): React.ReactElement {
       })
     })
     observer.observe(hostRef.current)
-    return () => { disposed = true; observer.disconnect(); hostRef.current?.removeEventListener('paste', handlePaste); cancelAnimationFrame(resizeFrame); input.dispose(); terminal.dispose(); terminalRef.current = undefined }
-  }, [markTerminalSessionStale, pasteClipboardText, session?.sessionId, writeTerminalText])
+    return () => { disposed = true; observer.disconnect(); hostRef.current?.removeEventListener('paste', handlePaste); cancelAnimationFrame(resizeFrame); scrollDisposable.dispose(); input.dispose(); terminal.dispose(); terminalRef.current = undefined }
+  }, [markTerminalSessionStale, pasteClipboardText, session?.sessionId, setFollowMode, writeTerminalText])
 
   useEffect(() => {
     if (!window.harness) return
     const offData = window.harness.onTerminalData((event) => {
-      if (event.sessionId === session?.sessionId && event.data) terminalRef.current?.write(event.data)
+      if (event.sessionId === session?.sessionId && event.data) {
+        setLastOutputAt(new Date().toISOString())
+        terminalRef.current?.write(event.data, () => {
+          if (autoFollowRef.current) terminalRef.current?.scrollToBottom()
+        })
+      }
     })
     const offExit = window.harness.onTerminalExit((event) => {
       if (event.sessionId === session?.sessionId) {
@@ -236,15 +300,28 @@ function TerminalContent(): React.ReactElement {
     return () => { offData(); offExit(); offStatus() }
   }, [session?.sessionId])
 
-  async function start(kind: 'codex' | 'shell'): Promise<void> {
+  async function start(kind: 'codex' | 'claude' | 'shell'): Promise<void> {
     if (!window.harness || !selectedRun || !terminalRef.current) return
+    const settings = loadLocalSettings()
+    const label = kind === 'shell' ? 'Open a shell' : `Start ${kind === 'claude' ? 'Claude Code' : 'Codex'}`
+    const authorization = authorizePolicy(settings.policy.commandExecution, `${label} for run ${selectedRun.run_id}?`)
+    if (!authorization.allowed) {
+      if (authorization.blocked) setMessage(policyBlockedMessage(label))
+      return
+    }
     setBusy(true); setMessage('')
     try {
       const created = await window.harness.createTerminal({
-        projectId: selectedProjectId, runId: selectedRun.run_id, kind,
+        projectId: selectedProjectId,
+        runId: selectedRun.run_id,
+        kind: kind === 'claude' ? 'ai' : kind,
+        provider: kind === 'shell' ? undefined : kind,
+        policyConfirmed: settings.policy.commandExecution === 'ask',
         cols: terminalRef.current.cols || 120, rows: terminalRef.current.rows || 30,
       })
       setSession(created)
+      setLastOutputAt('')
+      setFollowMode(true)
       await refreshTerminals()
       terminalRef.current.focus()
     } catch (cause) { setMessage(cause instanceof Error ? cause.message : 'Terminal start failed') }
@@ -260,6 +337,8 @@ function TerminalContent(): React.ReactElement {
   async function restart(): Promise<void> {
     if (!window.harness || !session) return
     setSession(await window.harness.restartTerminal(session.sessionId))
+    setLastOutputAt('')
+    setFollowMode(true)
     terminalRef.current?.clear()
     await refreshTerminals()
   }
@@ -283,35 +362,51 @@ function TerminalContent(): React.ReactElement {
   const active = session?.status === 'starting' || session?.status === 'running'
   return <section className="page terminal-page">
     <header className="page-header"><h1>Terminal</h1><div className="actions">
-      <button className="button primary" disabled={busy || active || !context?.terminalAllowed} onClick={() => void start('codex')}><Play size={15} />Start Codex</button>
-      <button className="button" disabled={busy || active || !context?.terminalAllowed} onClick={() => void start('shell')}>Open Shell</button>
-      <button className="button danger" disabled={!active} onClick={() => void stop()}><Square size={15} />Stop</button>
-      <button className="button" disabled={!session || active} onClick={() => void restart()} title="Restart terminal"><RefreshCw size={15} /></button>
-      <button className="button" onClick={() => terminalRef.current?.clear()} title="Clear terminal"><Trash2 size={15} /></button>
+      <button className="button primary" disabled={busy || active || !context?.terminalAllowed} onClick={() => void start(defaultAiProvider)}><Play size={15} />{text('Start', '启动')} {defaultAiProvider === 'claude' ? 'Claude Code' : 'Codex'}</button>
+      <button className="button" disabled={busy || active || !context?.terminalAllowed} onClick={() => void start(secondaryAiProvider)}><Play size={15} />{text('Start', '启动')} {secondaryAiProvider === 'claude' ? 'Claude Code' : 'Codex'}</button>
+      <button className="button" disabled={busy || active || !context?.terminalAllowed} onClick={() => void start('shell')}>{text('Open Shell', '打开 Shell')}</button>
+      <button className="button danger" disabled={!active} onClick={() => void stop()}><Square size={15} />{text('Stop', '停止')}</button>
+      <button className="button" disabled={!session || active} onClick={() => void restart()} title={text('Restart terminal', '重启终端')}><RefreshCw size={15} /></button>
+      <button className="button" onClick={() => terminalRef.current?.clear()} title={text('Clear terminal', '清空终端')}><Trash2 size={15} /></button>
     </div></header>
     {message && <div className="notice error">{message}</div>}
+    {pendingPaste && <div className="notice terminal-paste-confirm">
+      <div><strong>Paste {pendingPaste.split(/\r?\n/).filter(Boolean).length} lines?</strong><span>Multi-line paste is held for confirmation before writing to the terminal.</span></div>
+      <pre>{pendingPaste.slice(0, 1200)}</pre>
+      <div className="actions">
+        <button className="button primary" onClick={() => void confirmPendingPaste()}>{text('Paste', '粘贴')}</button>
+        <button className="button" onClick={() => setPendingPaste('')}>{text('Cancel', '取消')}</button>
+      </div>
+    </div>}
     {!selectedRun && <div className="notice">Select a run before starting a terminal.</div>}
     {context && <div className="terminal-context">
       <span><small>Run</small><strong className="mono">{context.runId}</strong></span>
       <span><small>Node / Role</small><strong>{context.currentNode} / {context.nextRole}</strong></span>
       <span className="grow"><small>Worktree</small><strong className="mono truncate">{context.worktreePath}</strong></span>
+      <span><small>Provider</small><strong>{session?.provider === 'claude' ? 'Claude Code' : session?.provider === 'codex' || session?.kind === 'codex' ? 'Codex' : session?.kind || 'none'}</strong></span>
+      <span><small>PID</small><strong className="mono">{session?.pid || '-'}</strong></span>
+      <span><small>Last output</small><strong className="mono">{formatClock(lastOutputAt || session?.startedAt)}</strong></span>
+      <span><small>Follow</small><strong className={`badge ${autoFollow ? 'success' : 'warning'}`}>{autoFollow ? 'auto' : 'paused'}</strong></span>
       <span><small>Session</small><strong className={`badge ${active ? 'success' : ''}`}>{session?.status || 'idle'}</strong></span>
     </div>}
     {context && !context.terminalAllowed && <div className="notice error">{context.terminalBlockReason || 'Terminal is not available for this run.'}</div>}
     <div className="terminal-tools">
       <div className="terminal-search"><Search size={14} /><input value={searchText} onChange={(event) => setSearchText(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') searchRef.current?.findNext(searchText) }} placeholder="Find" /></div>
-      <button className="button icon-button" title="Copy selection" onClick={() => void navigator.clipboard.writeText(terminalRef.current?.getSelection() || '')}><Copy size={15} /></button>
-      <button className="button icon-button" title="Paste" onClick={() => void pasteClipboardText()}><Clipboard size={15} /></button>
+      <button className="button icon-button" title={text('Copy selection', '复制选中内容')} onClick={() => void navigator.clipboard.writeText(terminalRef.current?.getSelection() || '')}><Copy size={15} /></button>
+      <button className="button" title={text('Copy all terminal output', '复制全部终端输出')} onClick={() => void navigator.clipboard.writeText(terminalBufferText(terminalRef.current))}>{text('Copy all', '复制全部')}</button>
+      <button className="button" title={text('Copy recent terminal output', '复制最近终端输出')} onClick={() => void navigator.clipboard.writeText(terminalBufferText(terminalRef.current, 120))}>{text('Copy recent', '复制最近内容')}</button>
+      <button className="button" title={text('Resume automatic scrolling', '恢复自动滚动')} onClick={() => { setFollowMode(true); terminalRef.current?.scrollToBottom() }}>{text('Follow', '跟随')}</button>
+      <button className="button icon-button" title={text('Paste', '粘贴')} onClick={() => void pasteClipboardText()}><Clipboard size={15} /></button>
     </div>
     <div className="terminal-host" ref={hostRef} />
     {selectedRun && context && <div className="node-controls">
       <div><strong>{context.currentNode}</strong><span className="muted">Expected artifact: {context.phaseDir}</span></div>
       {CONFIRMATION_NODES.has(context.currentNode) ? <>
         <input value={comment} onChange={(event) => setComment(event.target.value)} placeholder="Decision comment" />
-        <button className="button primary" disabled={busy} onClick={() => void complete('accept')}>Accept</button>
-        <button className="button" disabled={busy} onClick={() => void complete('defer')}>Defer</button>
-        <button className="button danger" disabled={busy || !comment.trim()} onClick={() => void complete('reject')}>Reject</button>
-      </> : <button className="button primary" disabled={busy} onClick={() => void complete()}>Complete current node</button>}
+        <button className="button primary" disabled={busy} onClick={() => void complete('accept')}>{text('Accept', '通过')}</button>
+        <button className="button" disabled={busy} onClick={() => void complete('defer')}>{text('Defer', '暂缓')}</button>
+        <button className="button danger" disabled={busy || !comment.trim()} onClick={() => void complete('reject')}>{text('Reject', '拒绝')}</button>
+      </> : <button className="button primary" disabled={busy} onClick={() => void complete()}>{text('Complete current node', '完成当前节点')}</button>}
     </div>}
   </section>
 }

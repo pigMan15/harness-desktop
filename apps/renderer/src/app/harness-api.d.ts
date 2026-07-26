@@ -32,14 +32,17 @@ export interface RunSummary {
 }
 
 export type TerminalStatus = 'starting' | 'running' | 'exited' | 'failed' | 'stopped' | 'interrupted'
-export interface TerminalCreateRequest { projectId: string; runId: string; kind: 'codex' | 'shell'; cols: number; rows: number }
+export type AiCliProvider = 'codex' | 'claude'
+export type TerminalKind = 'codex' | 'claude' | 'ai' | 'shell'
+export interface TerminalCreateRequest { projectId: string; runId: string; kind: TerminalKind; provider?: AiCliProvider; cols: number; rows: number; policyConfirmed?: boolean }
 export interface TerminalSessionSummary {
-  sessionId: string; projectId: string; runId: string; nodeId: string; kind: 'codex' | 'shell'
+  sessionId: string; projectId: string; runId: string; nodeId: string; kind: TerminalKind; provider?: AiCliProvider
   executablePath: string; cwd: string; pid?: number; status: TerminalStatus; startedAt: string
   endedAt?: string; exitCode?: number; cols: number; rows: number; sequence: number; summary: string
 }
 export interface TerminalEvent extends Partial<TerminalSessionSummary> { sessionId: string; projectId: string; runId: string; nodeId: string; sequence: number; data?: string }
 export interface CodexSettings { executablePath: string; version: string; lastProbeStatus: 'available' | 'unavailable'; lastProbeAt: string; source: 'user' | 'environment' | 'hermes' | 'path' }
+export type AiCliProvider = 'codex' | 'claude'
 
 export interface WorkflowNode { id: string; role: string; artifact: string; gates: string[] }
 export interface ExecutionDecision { requestId: number; decision: 'allow_once' | 'allow_session' | 'deny' | 'cancel' }
@@ -47,6 +50,14 @@ type ApiObject = Record<string, unknown> & { error?: string }
 
 export interface HarnessApi {
   health: () => Promise<ApiObject>
+  getAppSettings: () => Promise<ApiObject | undefined>
+  setAppSettings: (settings: unknown) => Promise<ApiObject>
+  resetAppSettings: () => Promise<ApiObject>
+  exportAppSettings: () => Promise<ApiObject>
+  importAppSettings: () => Promise<ApiObject>
+  probeGithubRelease: (projectId: string, tag: string) => Promise<ApiObject>
+  selectGithubReleaseAssets: () => Promise<ApiObject>
+  publishGithubRelease: (projectId: string, request: { tag: string; title: string; notes: string; assets: string[]; draft: boolean; overwriteAssets: boolean }, policyConfirmed?: boolean) => Promise<ApiObject>
   listProjects: () => Promise<ProjectSummary[] | { error: string }>
   importProject: (path: string) => Promise<ProjectSummary | { error: string }>
   validateProject: (path: string) => Promise<ApiObject>
@@ -59,7 +70,8 @@ export interface HarnessApi {
   pauseRun: (projectId: string, runId: string, expectedRevision?: string) => Promise<ApiObject>
   resumeRun: (projectId: string, runId: string, expectedRevision?: string) => Promise<ApiObject>
   archiveRun: (projectId: string, runId: string, expectedRevision?: string) => Promise<ApiObject>
-  mergeRunBack: (projectId: string, runId: string, expectedRevision?: string) => Promise<ApiObject>
+  preflightRunMergeBack: (projectId: string, runId: string, expectedRevision?: string) => Promise<ApiObject>
+  mergeRunBack: (projectId: string, runId: string, expectedRevision?: string, policyConfirmed?: boolean) => Promise<ApiObject>
   getRunExecutionContext: (projectId: string, runId: string, expectedRevision?: string) => Promise<ApiObject>
   completeNode: (projectId: string, runId: string, expectedRevision?: string) => Promise<ApiObject>
   confirmNode: (projectId: string, runId: string, decision: 'accept' | 'reject' | 'defer', comment: string, expectedRevision?: string) => Promise<ApiObject>
@@ -83,6 +95,10 @@ export interface HarnessApi {
   getCodexSettings: () => Promise<CodexSettings | { error: string } | undefined>
   discoverCodex: () => Promise<ApiObject>
   selectCodexExecutable: () => Promise<ApiObject>
+  getAiCliSettings: (provider: AiCliProvider) => Promise<CodexSettings | { error: string } | undefined>
+  discoverAiCli: (provider: AiCliProvider) => Promise<ApiObject>
+  selectAiCliExecutable: (provider: AiCliProvider) => Promise<ApiObject>
+  setAiCliExecutable: (provider: AiCliProvider, executablePath: string) => Promise<ApiObject>
   createTerminal: (request: TerminalCreateRequest) => Promise<TerminalSessionSummary>
   listTerminals: (projectId: string) => Promise<TerminalSessionSummary[]>
   writeTerminal: (sessionId: string, data: string) => Promise<void>
@@ -101,20 +117,21 @@ export interface HarnessApi {
   inspectKnowledgeRepoLocalPath: (projectId: string, localPath: string) => Promise<ApiObject>
   pullKnowledgeRepo: (projectId: string) => Promise<ApiObject>
   synthesizeKnowledgeRepo: (projectId: string, candidateIds: number[]) => Promise<ApiObject>
-  startKnowledgeCodexSynthesis: (projectId: string, candidateIds: number[], allowDirty?: boolean) => Promise<ApiObject>
+  startKnowledgeCodexSynthesis: (projectId: string, candidateIds: number[], allowDirty?: boolean, policyConfirmed?: boolean, dirtyPolicyConfirmed?: boolean, provider?: AiCliProvider) => Promise<ApiObject>
   getActiveKnowledgeCodexSynthesis: (projectId: string) => Promise<ApiObject>
   pollKnowledgeCodexSynthesis: (projectId: string, sessionId: string) => Promise<unknown>
   respondKnowledgeCodexSynthesis: (projectId: string, sessionId: string, decision: ExecutionDecision) => Promise<unknown>
   sendKnowledgeCodexFeedback: (projectId: string, sessionId: string, feedback: string) => Promise<ApiObject>
   cancelKnowledgeCodexSynthesis: (projectId: string, sessionId: string) => Promise<ApiObject>
-  pushKnowledgeRepo: (projectId: string, candidateIds: number[]) => Promise<ApiObject>
-  probeExecution: (projectId: string) => Promise<ApiObject>
-  startExecution: (projectId: string, runId: string, expectedRevision?: string) => Promise<ApiObject>
+  pushKnowledgeRepo: (projectId: string, candidateIds: number[], pushPolicyConfirmed?: boolean, commitPolicyConfirmed?: boolean) => Promise<ApiObject>
+  probeExecution: (projectId: string, provider?: AiCliProvider) => Promise<ApiObject>
+  startExecution: (projectId: string, runId: string, expectedRevision?: string, provider?: AiCliProvider, policyConfirmed?: boolean) => Promise<ApiObject>
   pollExecution: (projectId: string, runId: string, sessionId: string) => Promise<unknown>
   respondExecution: (projectId: string, runId: string, sessionId: string, decision: ExecutionDecision) => Promise<unknown>
   cancelExecution: (projectId: string, runId: string, sessionId: string) => Promise<unknown>
   scanRecovery: (projectId: string) => Promise<unknown[] | { error: string }>
   cleanupRecovery: (projectId: string) => Promise<string[] | { error: string }>
+  archiveRecoverySession: (projectId: string, sessionId: string) => Promise<ApiObject>
   onRuntimeEvent: (channel: string, callback: (...args: unknown[]) => void) => () => void
 }
 

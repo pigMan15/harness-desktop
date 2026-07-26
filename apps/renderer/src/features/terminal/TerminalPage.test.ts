@@ -37,4 +37,14 @@ describe('TerminalPage source contract', () => {
     expect(source).toContain("getData('text/plain')")
     expect(source).toContain('pasteClipboardText')
   })
+
+  it('preserves Chinese IME composition and input typed during scrollback replay', () => {
+    expect(source).toContain('event.isComposing')
+    expect(source).toContain("event.key === 'Process'")
+    expect(source).toContain('event.keyCode === 229')
+    expect(source).toContain('pendingInput += data')
+    expect(source).toContain('writeTerminalText(inputAfterReplay)')
+    expect(source).toContain('terminal.focus()')
+    expect(source).toContain('Microsoft YaHei UI')
+  })
 })

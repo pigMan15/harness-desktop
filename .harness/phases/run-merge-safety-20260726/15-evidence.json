@@ -1,0 +1,77 @@
+{
+  "run_id": "run-merge-safety-20260726",
+  "intent": "FEATURE",
+  "risk": "MEDIUM",
+  "changed_files": [
+    "runtime/src/harness_runtime/runs/service.py",
+    "runtime/src/harness_runtime/api/app.py",
+    "runtime/tests/runs/test_run_service.py",
+    "apps/desktop/src/main/index.ts",
+    "apps/desktop/src/preload/index.ts",
+    "apps/desktop/src/preload/harness-api.ts",
+    "apps/renderer/src/app/harness-api.d.ts",
+    "apps/renderer/src/features/runs/RunsPage.tsx",
+    "apps/renderer/src/features/runs/merge-assistant.ts",
+    "apps/renderer/src/features/runs/merge-assistant.test.ts",
+    "apps/renderer/src/features/runs/runs.css"
+  ],
+  "commands": [
+    {
+      "name": "Desktop 静态类型检查",
+      "command": "pnpm.cmd --filter @harness/desktop typecheck",
+      "cwd": "G:\\Project\\ai\\harness-desktop",
+      "exit_code": 0,
+      "result": "TypeScript 静态检查通过。"
+    },
+    {
+      "name": "Renderer 正式构建",
+      "command": "pnpm.cmd --filter @harness/renderer build",
+      "cwd": "G:\\Project\\ai\\harness-desktop",
+      "exit_code": 0,
+      "result": "TypeScript 与 Vite 构建通过；存在原有的 CJS 弃用和大 chunk 警告。"
+    },
+    {
+      "name": "Runtime Run Service 单元测试",
+      "command": "python -m pytest runtime/tests/runs/test_run_service.py -q",
+      "cwd": "G:\\Project\\ai\\harness-desktop",
+      "exit_code": 0,
+      "result": "26 项测试通过，包含 4 个真实 Git 合并预检场景。"
+    },
+    {
+      "name": "Renderer 单元测试",
+      "command": "pnpm.cmd --filter @harness/renderer test",
+      "cwd": "G:\\Project\\ai\\harness-desktop",
+      "exit_code": 0,
+      "result": "11 个测试文件、35 项测试全部通过。"
+    }
+  ],
+  "gates": {
+    "G1_REQUIREMENTS": "PASS",
+    "G2_DESIGN": "PASS",
+    "G3_COMPILE": "PASS",
+    "G4_UNIT_TEST": "PASS",
+    "G5_ATDD": "NOT_REQUIRED",
+    "G6_EVIDENCE": "PASS",
+    "G7_PRERELEASE": "NOT_REQUIRED",
+    "G8_ACCEPTANCE": "NOT_RUN"
+  },
+  "artifacts": [
+    "00-intake.md",
+    "00-context-pack.md",
+    "01-requirement-review.md",
+    "03-solution-design.md",
+    "06-implementation-plan.md",
+    "07-acceptance-confirmation.md",
+    "11-development.md",
+    "12-compile.md",
+    "13-unit-test.md",
+    "15-evidence.json"
+  ],
+  "waivers": [],
+  "residual_risks": [
+    "尚未在运行中的 Electron 窗口中执行人工视觉验收；已通过类型检查、组件逻辑测试和正式构建。",
+    "非 Fast-forward 的隔离 Worktree 合并仍是后续能力，本次会安全阻止并交给用户通过 Git 处理。",
+    "文件和技术详情列表会截断显示，以避免超大仓库导致界面卡顿；完整状态可通过复制的 Git 命令查看。",
+    "Renderer 生产包仍有既有的大 chunk 体积警告，与本次合并逻辑无直接关系。"
+  ]
+}

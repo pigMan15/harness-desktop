@@ -11,8 +11,10 @@ import { readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { DESKTOP_VERSION, RuntimeSupervisor } from './runtime-supervisor'
 import { createProjectImportHandler } from './project-import'
-import { CodexSettingsStore, discoverCodex, knownHermesCandidates, whereCodex } from './codex-discovery'
+import { AiCliSettingsStore, discoverAiCli, knownClaudeCandidates, knownHermesCandidates, whereClaudeCode, whereCodex } from './codex-discovery'
 import { TerminalManager } from './terminal-manager'
+import { AppSettingsStore, DEFAULT_APP_SETTINGS, enforcePolicy, type PolicyAction } from './app-settings'
+import { probeGithubRelease, publishGithubRelease, type GithubReleaseRequest } from './github-release'
 
 declare const MAIN_WINDOW_VITE_DEV_SERVER_URL: string | undefined
 declare const MAIN_WINDOW_VITE_NAME: string
@@ -95,17 +97,29 @@ app.whenReady().then(() => {
     }
   }
 
-  const codexStore = new CodexSettingsStore(path.join(app.getPath('userData'), 'codex-settings.json'))
-  async function discoverConfiguredCodex(userPath?: string): Promise<Record<string, unknown>> {
-    const saved = await codexStore.load()
-    const result = await discoverCodex({
+  async function resolveRegisteredProjectPath(projectId: string): Promise<string> {
+    const projects = await runtimeCall('project.list')
+    const project = Array.isArray(projects) ? projects.find((item) => item?.projectId === projectId) : undefined
+    if (!project?.path) throw new Error(`PROJECT_NOT_FOUND: ${projectId}`)
+    return String(project.path)
+  }
+
+  const aiCliStore = new AiCliSettingsStore(path.join(app.getPath('userData'), 'ai-cli-settings.json'))
+  const appSettingsStore = new AppSettingsStore(path.join(app.getPath('userData'), 'app-settings.json'))
+  async function enforceConfiguredPolicy(action: PolicyAction, confirmed?: boolean): Promise<void> {
+    enforcePolicy(await appSettingsStore.loadOrDefault(), action, confirmed === true)
+  }
+  async function discoverConfiguredAiCli(provider: 'codex' | 'claude', userPath?: string): Promise<Record<string, unknown>> {
+    const saved = await aiCliStore.load(provider)
+    const result = await discoverAiCli({
+      provider,
       userPath: userPath || saved?.executablePath,
-      environmentPath: process.env.HARNESS_CODEX_PATH,
-      hermesCandidates: knownHermesCandidates(),
-      pathCandidates: await whereCodex(),
+      environmentPath: provider === 'claude' ? process.env.HARNESS_CLAUDE_PATH : process.env.HARNESS_CODEX_PATH,
+      hermesCandidates: provider === 'claude' ? knownClaudeCandidates() : knownHermesCandidates(),
+      pathCandidates: provider === 'claude' ? await whereClaudeCode() : await whereCodex(),
     })
     if (result.available && result.path && result.version && result.source) {
-      await codexStore.save({
+      await aiCliStore.save(provider, {
         executablePath: result.path,
         version: result.version,
         lastProbeStatus: 'available',
@@ -118,9 +132,9 @@ app.whenReady().then(() => {
 
   terminalManager = new TerminalManager({
     getExecutionContext: (projectId, runId) => runtimeCall('run.executionContext', { projectId, runId }),
-    resolveExecutable: async () => {
-      const result = await discoverConfiguredCodex()
-      if (result.available !== true) throw new Error(String(result.diagnostics || 'CODEX_UNAVAILABLE'))
+    resolveExecutable: async (provider) => {
+      const result = await discoverConfiguredAiCli(provider)
+      if (result.available !== true) throw new Error(String(result.diagnostics || `${provider.toUpperCase()}_UNAVAILABLE`))
       return { path: String(result.path), version: String(result.version) }
     },
     updateProjection: (projectId, session) => runtimeCall('terminal.session.update', { projectId, session }),
@@ -143,6 +157,40 @@ app.whenReady().then(() => {
     } catch (err: any) {
       return { status: 'unavailable', error: err.message }
     }
+  })
+  ipcMain.handle('app-settings:get', async () => appSettingsStore.load())
+  ipcMain.handle('app-settings:set', async (_event, settings: unknown) => appSettingsStore.save(settings))
+  ipcMain.handle('app-settings:reset', async () => appSettingsStore.save(DEFAULT_APP_SETTINGS))
+  ipcMain.handle('app-settings:export', async () => {
+    const settings = await appSettingsStore.loadOrDefault()
+    const result = await dialog.showSaveDialog({
+      title: 'Export Harness Desktop settings',
+      defaultPath: 'harness-desktop-settings.json',
+      filters: [{ name: 'JSON', extensions: ['json'] }],
+    })
+    if (result.canceled || !result.filePath) return { error: 'cancelled' }
+    await writeFile(result.filePath, `${JSON.stringify(settings, null, 2)}\n`, 'utf8')
+    return { success: true, filePath: result.filePath }
+  })
+  ipcMain.handle('app-settings:import', async () => {
+    const result = await dialog.showOpenDialog({
+      title: 'Import Harness Desktop settings',
+      properties: ['openFile'],
+      filters: [{ name: 'JSON', extensions: ['json'] }],
+    })
+    if (result.canceled || !result.filePaths[0]) return { error: 'cancelled' }
+    const settings = await appSettingsStore.save(JSON.parse(await readFile(result.filePaths[0], 'utf8')))
+    return { success: true, filePath: result.filePaths[0], settings }
+  })
+  ipcMain.handle('release:probe', async (_event, projectId: string, tag: string) =>
+    probeGithubRelease(await resolveRegisteredProjectPath(projectId), tag))
+  ipcMain.handle('release:select-assets', async () => {
+    const result = await dialog.showOpenDialog({ title: 'Select GitHub Release assets', properties: ['openFile', 'multiSelections'] })
+    return result.canceled ? { error: 'cancelled', assets: [] } : { assets: result.filePaths }
+  })
+  ipcMain.handle('release:publish', async (_event, projectId: string, request: GithubReleaseRequest, policyConfirmed?: boolean) => {
+    await enforceConfiguredPolicy('gitPush', policyConfirmed)
+    return publishGithubRelease(await resolveRegisteredProjectPath(projectId), request)
   })
 
   // ── IPC: Projects ──
@@ -174,8 +222,12 @@ app.whenReady().then(() => {
     runtimeCall('run.resume', { projectId, runId, expectedRevision }))
   ipcMain.handle('run:archive', async (_e, projectId: string, runId: string, expectedRevision?: string) =>
     runtimeCall('run.archive', { projectId, runId, expectedRevision }))
-  ipcMain.handle('run:merge-back', async (_e, projectId: string, runId: string, expectedRevision?: string) =>
-    runtimeCall('run.mergeBack', { projectId, runId, expectedRevision }))
+  ipcMain.handle('run:merge-back-preflight', async (_e, projectId: string, runId: string, expectedRevision?: string) =>
+    runtimeCall('run.mergeBackPreflight', { projectId, runId, expectedRevision }))
+  ipcMain.handle('run:merge-back', async (_e, projectId: string, runId: string, expectedRevision?: string, policyConfirmed?: boolean) => {
+    await enforceConfiguredPolicy('gitCommit', policyConfirmed)
+    return runtimeCall('run.mergeBack', { projectId, runId, expectedRevision })
+  })
   ipcMain.handle('run:execution-context', async (_e, projectId: string, runId: string, expectedRevision?: string) =>
     runtimeCall('run.executionContext', { projectId, runId, expectedRevision }))
 
@@ -237,17 +289,32 @@ app.whenReady().then(() => {
     runtimeCall('artifact.hash', { projectId, runId, filename }))
 
   // ── IPC: Codex settings and native PTY ──
-  ipcMain.handle('codex-settings:get', async () => codexStore.load())
-  ipcMain.handle('codex-settings:discover', async () => discoverConfiguredCodex())
+  ipcMain.handle('codex-settings:get', async () => aiCliStore.load('codex'))
+  ipcMain.handle('codex-settings:discover', async () => discoverConfiguredAiCli('codex'))
+  ipcMain.handle('codex-settings:set-path', async (_event, executablePath: string) => discoverConfiguredAiCli('codex', executablePath))
   ipcMain.handle('codex-settings:select', async () => {
     const result = await dialog.showOpenDialog({
       title: 'Select Codex executable', properties: ['openFile'],
       filters: process.platform === 'win32' ? [{ name: 'Executable', extensions: ['exe'] }] : undefined,
     })
     if (result.canceled || !result.filePaths[0]) return { error: 'cancelled' }
-    return discoverConfiguredCodex(result.filePaths[0])
+    return discoverConfiguredAiCli('codex', result.filePaths[0])
   })
-  ipcMain.handle('terminal:create', async (event, request) => terminalManager!.create(event.sender.id, request))
+  ipcMain.handle('claude-settings:get', async () => aiCliStore.load('claude'))
+  ipcMain.handle('claude-settings:discover', async () => discoverConfiguredAiCli('claude'))
+  ipcMain.handle('claude-settings:set-path', async (_event, executablePath: string) => discoverConfiguredAiCli('claude', executablePath))
+  ipcMain.handle('claude-settings:select', async () => {
+    const result = await dialog.showOpenDialog({
+      title: 'Select Claude Code executable', properties: ['openFile'],
+      filters: process.platform === 'win32' ? [{ name: 'Executable', extensions: ['exe'] }] : undefined,
+    })
+    if (result.canceled || !result.filePaths[0]) return { error: 'cancelled' }
+    return discoverConfiguredAiCli('claude', result.filePaths[0])
+  })
+  ipcMain.handle('terminal:create', async (event, request) => {
+    await enforceConfiguredPolicy('commandExecution', request?.policyConfirmed)
+    return terminalManager!.create(event.sender.id, request)
+  })
   ipcMain.handle('terminal:list', async (_event, projectId: string) => {
     const durable = await runtimeCall('terminal.session.list', { projectId })
     const combined = new Map<string, unknown>((Array.isArray(durable) ? durable : []).map((item: any) => [item.sessionId, item]))
@@ -276,8 +343,13 @@ app.whenReady().then(() => {
     runtimeCall('knowledge.repo.pull', { projectId }))
   ipcMain.handle('knowledge:repo-synthesize', async (_e, projectId: string, candidateIds: number[]) =>
     runtimeCall('knowledge.repo.synthesize', { projectId, candidateIds }))
-  ipcMain.handle('knowledge:repo-codex-start', async (_e, projectId: string, candidateIds: number[], allowDirty?: boolean) =>
-    runtimeCall('knowledge.repo.codex.start', { projectId, candidateIds, allowDirty }))
+  ipcMain.handle('knowledge:repo-codex-start', async (_e, projectId: string, candidateIds: number[], allowDirty?: boolean, policyConfirmed?: boolean, dirtyPolicyConfirmed?: boolean, provider = 'codex') => {
+    await enforceConfiguredPolicy('commandExecution', policyConfirmed)
+    if (allowDirty) await enforceConfiguredPolicy('dirtyWorktree', dirtyPolicyConfirmed)
+    const settings = await appSettingsStore.loadOrDefault()
+    const executable = await discoverConfiguredAiCli(provider === 'claude' ? 'claude' : 'codex')
+    return runtimeCall('knowledge.repo.codex.start', { projectId, candidateIds, allowDirty, allowRepeat: settings.policy.repeatKnowledgePush, provider, executablePath: executable.path || '' })
+  })
   ipcMain.handle('knowledge:repo-codex-active', async (_e, projectId: string) =>
     runtimeCall('knowledge.repo.codex.active', { projectId }))
   ipcMain.handle('knowledge:repo-codex-poll', async (_e, projectId: string, sessionId: string) =>
@@ -288,14 +360,23 @@ app.whenReady().then(() => {
     runtimeCall('knowledge.repo.codex.feedback', { projectId, sessionId, feedback }))
   ipcMain.handle('knowledge:repo-codex-cancel', async (_e, projectId: string, sessionId: string) =>
     runtimeCall('knowledge.repo.codex.cancel', { projectId, sessionId }))
-  ipcMain.handle('knowledge:repo-push', async (_e, projectId: string, candidateIds: number[]) =>
-    runtimeCall('knowledge.repo.push', { projectId, candidateIds }))
+  ipcMain.handle('knowledge:repo-push', async (_e, projectId: string, candidateIds: number[], pushConfirmed?: boolean, commitConfirmed?: boolean) => {
+    await enforceConfiguredPolicy('gitCommit', commitConfirmed)
+    await enforceConfiguredPolicy('gitPush', pushConfirmed)
+    const settings = await appSettingsStore.loadOrDefault()
+    return runtimeCall('knowledge.repo.push', { projectId, candidateIds, allowRepeat: settings.policy.repeatKnowledgePush })
+  })
 
   // ── IPC: Execution ──
-  ipcMain.handle('execution:probe', async (_e, projectId: string) =>
-    runtimeCall('execution.probe', { projectId }))
-  ipcMain.handle('execution:start', async (_e, projectId: string, runId: string, expectedRevision?: string) =>
-    runtimeCall('execution.start', { projectId, runId, expectedRevision }))
+  ipcMain.handle('execution:probe', async (_e, projectId: string, provider = 'codex') => {
+    const executable = await discoverConfiguredAiCli(provider === 'claude' ? 'claude' : 'codex')
+    return runtimeCall('execution.probe', { projectId, provider, executablePath: executable.path || '' })
+  })
+  ipcMain.handle('execution:start', async (_e, projectId: string, runId: string, expectedRevision?: string, provider = 'codex', policyConfirmed?: boolean) => {
+    await enforceConfiguredPolicy('commandExecution', policyConfirmed)
+    const executable = await discoverConfiguredAiCli(provider === 'claude' ? 'claude' : 'codex')
+    return runtimeCall('execution.start', { projectId, runId, expectedRevision, provider, executablePath: executable.path || '' })
+  })
   ipcMain.handle('execution:poll', async (_e, projectId: string, runId: string, sessionId: string) =>
     runtimeCall('execution.poll', { projectId, runId, sessionId }))
   ipcMain.handle('execution:respond', async (_e, projectId: string, runId: string, sessionId: string, decision: unknown) =>
@@ -306,6 +387,7 @@ app.whenReady().then(() => {
   // ── IPC: Recovery ──
   ipcMain.handle('recovery:scan', async (_e, projectId: string) => runtimeCall('recovery.scan', { projectId }))
   ipcMain.handle('recovery:cleanup', async (_e, projectId: string) => runtimeCall('recovery.cleanup', { projectId }))
+  ipcMain.handle('recovery:archive', async (_e, projectId: string, sessionId: string) => runtimeCall('recovery.archive', { projectId, sessionId }))
 
   // Start the Runtime supervisor (handles Python subprocess lifecycle)
   supervisor = new RuntimeSupervisor()

@@ -63,7 +63,7 @@ describe('project import flow', () => {
   it('connects the flow to visible progress and notice states in ProjectsPage', () => {
     const source = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), 'ProjectsPage.tsx'), 'utf-8')
     expect(source).toContain('runProjectImport(window.harness.importProject, refreshProjects, selectProject)')
-    expect(source).toContain("importing ? 'Importing...' : 'Import project'")
+    expect(source).toContain("importing ? text('Importing...', '正在导入...') : text('Import project', '导入项目')")
     expect(source).toContain("notice?.kind")
   })
 })

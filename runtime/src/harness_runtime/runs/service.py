@@ -262,6 +262,242 @@ def archive_run(
     return state, revision
 
 
+
+def preflight_run_merge_back(
+    project_root: Path,
+    run_id: str,
+    expected_revision: Optional[str] = None,
+) -> dict:
+    """Inspect merge-back safety without changing HEAD, index, or worktree files."""
+    state, current_revision = read_run_state(project_root, run_id)
+    if not state:
+        return _blocked_merge_preflight(
+            run_id,
+            current_revision,
+            "RUN_NOT_FOUND",
+            "Run does not exist",
+            "Refresh Runs and select an existing Run.",
+        )
+    if expected_revision is not None and expected_revision != current_revision:
+        return _blocked_merge_preflight(
+            run_id,
+            current_revision,
+            "REVISION_CONFLICT",
+            "Run changed after this page was loaded",
+            "Refresh the preflight before merging.",
+        )
+
+    branch_name = str(state.get("branch_name") or "")
+    worktree_path = Path(str(state.get("worktree_path") or ""))
+    if not branch_name:
+        return _blocked_merge_preflight(
+            run_id,
+            current_revision,
+            "RUN_BRANCH_MISSING",
+            "Run branch is unavailable",
+            "Open the Run terminal and verify its Git branch metadata.",
+        )
+    if not worktree_path.is_dir():
+        return _blocked_merge_preflight(
+            run_id,
+            current_revision,
+            "RUN_WORKTREE_MISSING",
+            "Run worktree is unavailable",
+            "Restore or relocate the Run worktree before retrying.",
+            [str(worktree_path)],
+        )
+
+    try:
+        git_root = Path(_git(project_root, "rev-parse", "--show-toplevel").stdout.strip())
+        target_branch = _git(git_root, "rev-parse", "--abbrev-ref", "HEAD").stdout.strip()
+        if target_branch == "HEAD":
+            return _blocked_merge_preflight(
+                run_id,
+                current_revision,
+                "TARGET_BRANCH_DETACHED",
+                "Target repository is in detached HEAD state",
+                "Check out the intended target branch, then refresh.",
+                branch_name=branch_name,
+            )
+
+        target_head = _git(git_root, "rev-parse", "HEAD").stdout.strip()
+        run_head = _git(git_root, "rev-parse", branch_name).stdout.strip()
+        target_status = _parse_git_status(_git(git_root, "status", "--short").stdout)
+        run_status = _parse_git_status(_git(worktree_path, "status", "--short").stdout)
+        counts = _git(
+            git_root, "rev-list", "--left-right", "--count", f"{target_head}...{run_head}"
+        ).stdout.replace("\t", " ").split()
+        behind, ahead = (int(counts[0]), int(counts[1])) if len(counts) >= 2 else (0, 0)
+        merge_base = _git(git_root, "merge-base", target_head, run_head).stdout.strip()
+        fast_forward = merge_base == target_head
+        commits = _parse_merge_commits(
+            _git(
+                git_root,
+                "log",
+                "--format=%H%x1f%s%x1f%an%x1f%aI",
+                "-20",
+                f"{target_head}..{run_head}",
+            ).stdout
+        )
+        files = _parse_name_status(
+            _git(git_root, "diff", "--name-status", f"{target_head}..{run_head}").stdout
+        )
+    except RuntimeError as exc:
+        return _blocked_merge_preflight(
+            run_id,
+            current_revision,
+            "GIT_PREFLIGHT_FAILED",
+            "Git could not inspect this merge",
+            "Review the technical details, repair the repository state, and refresh.",
+            [str(exc)],
+            branch_name=branch_name,
+        )
+
+    issues = []
+    if target_status["total"]:
+        issues.append(
+            _merge_issue(
+                "TARGET_WORKTREE_DIRTY",
+                "Target worktree has local changes",
+                "Commit or stash the target changes yourself, then refresh. Harness will not clean them automatically.",
+                [entry["raw"] for entry in target_status["entries"]],
+            )
+        )
+    if run_status["total"]:
+        issues.append(
+            _merge_issue(
+                "RUN_WORKTREE_DIRTY",
+                "Run worktree has uncommitted changes",
+                "Open the Run terminal, review and commit the intended changes, then refresh.",
+                [entry["raw"] for entry in run_status["entries"]],
+            )
+        )
+    if ahead == 0:
+        issues.append(
+            _merge_issue(
+                "NO_CHANGES_TO_MERGE",
+                "The Run branch has no new commits",
+                "Refresh the Run state or complete and commit the Run changes first.",
+            )
+        )
+    elif not fast_forward:
+        issues.append(
+            _merge_issue(
+                "NON_FAST_FORWARD",
+                "Target and Run branches have diverged",
+                "Resolve the branch relationship with Git yourself. Harness will not rebase or auto-resolve conflicts.",
+                [f"Target-only commits: {behind}", f"Run-only commits: {ahead}"],
+            )
+        )
+
+    file_summary = {"added": 0, "modified": 0, "deleted": 0, "renamed": 0, "other": 0}
+    for entry in files["entries"]:
+        key = {"A": "added", "M": "modified", "D": "deleted", "R": "renamed"}.get(
+            entry["status"][:1], "other"
+        )
+        file_summary[key] += 1
+
+    can_merge = not issues and fast_forward and ahead > 0
+    return {
+        "runId": run_id,
+        "revision": current_revision,
+        "status": "ready" if can_merge else "blocked",
+        "canMerge": can_merge,
+        "targetBranch": target_branch,
+        "branchName": branch_name,
+        "targetHead": target_head,
+        "runHead": run_head,
+        "ahead": ahead,
+        "behind": behind,
+        "fastForward": fast_forward,
+        "targetStatus": target_status,
+        "runStatus": run_status,
+        "commits": commits,
+        "files": files,
+        "fileSummary": file_summary,
+        "issues": issues,
+    }
+
+
+def _blocked_merge_preflight(
+    run_id: str,
+    revision: str,
+    code: str,
+    title: str,
+    action: str,
+    details: Optional[list[str]] = None,
+    branch_name: str = "",
+) -> dict:
+    return {
+        "runId": run_id,
+        "revision": revision,
+        "status": "blocked",
+        "canMerge": False,
+        "targetBranch": "",
+        "branchName": branch_name,
+        "targetHead": "",
+        "runHead": "",
+        "ahead": 0,
+        "behind": 0,
+        "fastForward": False,
+        "targetStatus": {"total": 0, "entries": [], "truncated": False},
+        "runStatus": {"total": 0, "entries": [], "truncated": False},
+        "commits": [],
+        "files": {"total": 0, "entries": [], "truncated": False},
+        "fileSummary": {"added": 0, "modified": 0, "deleted": 0, "renamed": 0, "other": 0},
+        "issues": [_merge_issue(code, title, action, details)],
+    }
+
+
+def _merge_issue(
+    code: str,
+    title: str,
+    action: str,
+    details: Optional[list[str]] = None,
+) -> dict:
+    return {
+        "code": code,
+        "severity": "blocking",
+        "title": title,
+        "description": action,
+        "action": action,
+        "details": details or [],
+    }
+
+
+def _parse_git_status(output: str, limit: int = 20) -> dict:
+    lines = [line for line in output.splitlines() if line.strip()]
+    entries = [
+        {"status": line[:2].strip() or "?", "path": line[3:].strip(), "raw": line}
+        for line in lines[:limit]
+    ]
+    return {"total": len(lines), "entries": entries, "truncated": len(lines) > limit}
+
+
+def _parse_merge_commits(output: str) -> list[dict]:
+    commits = []
+    for line in output.splitlines():
+        parts = line.split("\x1f")
+        if len(parts) >= 4:
+            commits.append(
+                {"hash": parts[0], "subject": parts[1], "author": parts[2], "authoredAt": parts[3]}
+            )
+    return commits
+
+
+def _parse_name_status(output: str, limit: int = 100) -> dict:
+    lines = [line for line in output.splitlines() if line.strip()]
+    entries = []
+    for line in lines[:limit]:
+        parts = line.split("\t")
+        status = parts[0] if parts else "?"
+        path = parts[-1] if len(parts) > 1 else line
+        previous_path = parts[1] if status.startswith("R") and len(parts) > 2 else ""
+        entries.append(
+            {"status": status, "path": path, "previousPath": previous_path, "raw": line}
+        )
+    return {"total": len(lines), "entries": entries, "truncated": len(lines) > limit}
+
 def merge_run_back(
     project_root: Path,
     run_id: str,

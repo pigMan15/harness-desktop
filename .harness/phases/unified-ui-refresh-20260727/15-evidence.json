@@ -1,0 +1,125 @@
+{
+  "run_id": "unified-ui-refresh-20260727",
+  "intent": "FEATURE",
+  "risk": "MEDIUM",
+  "changed_files": [
+    "apps/renderer/src/app/main.tsx",
+    "apps/renderer/src/app/theme.css",
+    "apps/renderer/src/app/theme.test.ts",
+    "apps/renderer/src/app/spacing.test.ts",
+    "apps/renderer/src/features/knowledge/KnowledgePage.tsx",
+    "apps/renderer/src/features/gates/GatesDashboard.tsx"
+  ],
+  "commands": [
+    {
+      "name": "主题契约测试初始失败验证",
+      "command": "pnpm.cmd --filter @harness/renderer test -- src/app/theme.test.ts",
+      "cwd": "G:\\Project\\ai\\harness-desktop",
+      "exit_code": 1,
+      "result": "新增主题测试因 theme.css 尚不存在而按预期失败；原有 37 项测试通过。"
+    },
+    {
+      "name": "主题契约实现后验证",
+      "command": "pnpm.cmd --filter @harness/renderer test -- src/app/theme.test.ts",
+      "cwd": "G:\\Project\\ai\\harness-desktop",
+      "exit_code": 0,
+      "result": "14 个测试文件、41 项测试全部通过。"
+    },
+    {
+      "name": "差异空白检查",
+      "command": "git diff --check -- apps/renderer/src/app/main.tsx apps/renderer/src/app/theme.css apps/renderer/src/app/theme.test.ts",
+      "cwd": "G:\\Project\\ai\\harness-desktop",
+      "exit_code": 0,
+      "result": "本次三个 Renderer 文件无空白错误。"
+    },
+    {
+      "name": "Renderer 静态类型检查",
+      "command": "pnpm.cmd --filter @harness/renderer typecheck",
+      "cwd": "G:\\Project\\ai\\harness-desktop",
+      "exit_code": 0,
+      "result": "TypeScript 无类型错误。"
+    },
+    {
+      "name": "Renderer 生产构建",
+      "command": "pnpm.cmd --filter @harness/renderer build",
+      "cwd": "G:\\Project\\ai\\harness-desktop",
+      "exit_code": 0,
+      "result": "Vite 成功转换 1794 个模块并生成生产资源。"
+    },
+    {
+      "name": "Renderer 完整单元测试",
+      "command": "pnpm.cmd --filter @harness/renderer test",
+      "cwd": "G:\\Project\\ai\\harness-desktop",
+      "exit_code": 0,
+      "result": "14 个测试文件、41 项测试全部通过。"
+    },
+    {
+      "name": "间距契约测试初始失败验证",
+      "command": "pnpm.cmd --filter @harness/renderer test -- src/app/spacing.test.ts",
+      "cwd": "G:\\Project\\ai\\harness-desktop",
+      "exit_code": 1,
+      "result": "新增间距契约测试在实现前按预期失败，确认捕获模块间距不一致问题。"
+    },
+    {
+      "name": "间距 follow-up 类型检查",
+      "command": "pnpm.cmd --filter @harness/renderer typecheck",
+      "cwd": "G:\\Project\\ai\\harness-desktop",
+      "exit_code": 0,
+      "result": "Renderer TypeScript 类型检查通过。"
+    },
+    {
+      "name": "间距 follow-up 生产构建",
+      "command": "pnpm.cmd --filter @harness/renderer build",
+      "cwd": "G:\\Project\\ai\\harness-desktop",
+      "exit_code": 0,
+      "result": "Vite 成功转换 1794 个模块并生成生产资源。"
+    },
+    {
+      "name": "间距 follow-up 完整单元测试",
+      "command": "pnpm.cmd --filter @harness/renderer test",
+      "cwd": "G:\\Project\\ai\\harness-desktop",
+      "exit_code": 0,
+      "result": "15 个测试文件、44 项测试全部通过。"
+    }
+  ],
+  "gates": {
+    "G1_REQUIREMENTS": "PASS",
+    "G2_DESIGN": "PASS",
+    "G3_COMPILE": "PASS",
+    "G4_UNIT_TEST": "PASS",
+    "G5_ATDD": "NOT_REQUIRED",
+    "G6_EVIDENCE": "PASS",
+    "G7_PRERELEASE": "NOT_REQUIRED",
+    "G8_ACCEPTANCE": "PASS"
+  },
+  "artifacts": [
+    ".harness/phases/unified-ui-refresh-20260727/00-intake.md",
+    ".harness/phases/unified-ui-refresh-20260727/00-context-pack.md",
+    ".harness/phases/unified-ui-refresh-20260727/01-requirement-review.md",
+    ".harness/phases/unified-ui-refresh-20260727/03-solution-design.md",
+    ".harness/phases/unified-ui-refresh-20260727/06-implementation-plan.md",
+    ".harness/phases/unified-ui-refresh-20260727/07-acceptance-confirmation.md",
+    ".harness/phases/unified-ui-refresh-20260727/11-development.md",
+    ".harness/phases/unified-ui-refresh-20260727/12-compile.md",
+    ".harness/phases/unified-ui-refresh-20260727/13-unit-test.md",
+    ".harness/phases/unified-ui-refresh-20260727/15-evidence.json",
+    ".harness/phases/unified-ui-refresh-20260727/18-acceptance-report.md",
+    ".harness/phases/unified-ui-refresh-20260727/19-knowledge-promotion.md",
+    ".harness/phases/unified-ui-refresh-20260727/20-spacing-followup.md"
+  ],
+  "waivers": [
+    {
+      "scope": "G5_ATDD",
+      "reason": "当前 FEATURE / MEDIUM 工作流未包含 ATDD 节点；本次仅新增 Renderer 视觉主题层，不改变业务接口和状态流转。"
+    },
+    {
+      "scope": "G7_PRERELEASE",
+      "reason": "当前工作流未包含预发布部署和接口测试节点，且用户未要求本轮打包或发布。"
+    }
+  ],
+  "residual_risks": [
+    "尚未在真实 Electron 窗口中逐页完成人工视觉巡检，极端内容长度下仍可能存在局部换行差异；后续打包发布阶段会补充安装包级验证。",
+    "生产构建保留项目原有的大于 500 kB JavaScript chunk 警告和 Vite CJS Node API 弃用警告。",
+    "主题使用当前 Electron Chromium 支持的 backdrop-filter；不支持时界面仍可读，但半透明层次会减弱。"
+  ]
+}

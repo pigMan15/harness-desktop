@@ -52,6 +52,27 @@ describe('TerminalManager', () => {
     expect(manager.readScrollback(10, session.sessionId)).toEqual({ data: 'hello', sequence: 1 })
   })
 
+  it('passes AI CLI provider through to executable resolution', async () => {
+    const pty = fakePty()
+    const resolveExecutable = vi.fn().mockResolvedValue({ path: 'C:/tools/claude.exe', version: '1.0.0' })
+    const manager = new TerminalManager({
+      getExecutionContext: vi.fn().mockResolvedValue({
+        runId: 'run-a', currentNode: 'DEVELOPMENT', worktreePath: 'G:/worktrees/run-a',
+        terminalAllowed: true, revision: 'r1', phaseDir: '.harness/phases/run-a',
+      }),
+      resolveExecutable,
+      spawnPty: vi.fn(() => pty),
+      updateProjection: vi.fn().mockResolvedValue(undefined),
+      emit: vi.fn(),
+      randomId: () => 'session-provider',
+    })
+
+    const session = await manager.create(10, { projectId: 'project-a', runId: 'run-a', kind: 'ai', provider: 'claude', cols: 100, rows: 30 })
+
+    expect(resolveExecutable).toHaveBeenCalledWith('claude')
+    expect(session.provider).toBe('claude')
+  })
+
   it('marks active sessions interrupted during shutdown without completing nodes', async () => {
     const pty = fakePty()
     const updateProjection = vi.fn().mockResolvedValue(undefined)

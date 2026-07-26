@@ -1,6 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { ProjectRequired, useWorkspace } from '../layout/WorkspaceContext'
 import { MarkdownPreview } from '../artifacts/ArtifactsPage'
+import { authorizePolicy, loadLocalSettings, policyBlockedMessage, type AiProvider } from '../settings/settings-policy'
+import { useLanguage } from '../settings/LanguageContext'
 
 interface KnowledgeLogEntry { type: string; sequence: number; content?: string; error?: unknown; tool?: string; params?: Record<string, unknown>; message?: string; category?: string; requestId?: number; diff?: string; repo?: any; candidateIds?: number[]; manualPushCommand?: string }
 const DANGEROUS = new Set(['deploy', 'delete', 'dangerous_git'])
@@ -33,7 +35,19 @@ function extractLogText(value: unknown, depth = 0): string {
   return extractLogText(record.item, depth + 1)
 }
 
+function labelLogItem(type: string): string {
+  const labels: Record<string, string> = {
+    userMessage: '用户输入',
+    reasoning: 'Codex 分析',
+    agentMessage: 'Codex 回复',
+    commandExecution: '命令执行',
+    fileChange: '文件修改',
+  }
+  return labels[type] || type
+}
+
 function KnowledgeContent(): React.ReactElement {
+  const { text } = useLanguage()
   const { selectedProjectId } = useWorkspace()
   const [candidates, setCandidates] = useState<any[]>([])
   const [tab, setTab] = useState<'draft' | 'accepted' | 'rejected'>('draft')
@@ -53,6 +67,8 @@ function KnowledgeContent(): React.ReactElement {
   const [codexFeedback, setCodexFeedback] = useState('')
   const [msg, setMsg] = useState('')
   const [msgKind, setMsgKind] = useState<'info' | 'success' | 'error'>('info')
+  const [codexAutoFollow, setCodexAutoFollow] = useState(true)
+  const [provider, setProvider] = useState<AiProvider>(() => loadLocalSettings().defaultProvider)
   const timer = useRef<ReturnType<typeof setInterval>>()
   const codexLogRef = useRef<HTMLPreElement>(null)
   const pendingApproval = pendingApprovals[0]
@@ -87,6 +103,7 @@ function KnowledgeContent(): React.ReactElement {
   useEffect(() => {
     window.harness?.getActiveKnowledgeCodexSynthesis(selectedProjectId).then(r => {
       if (r?.active && r.sessionId) {
+        if (r.provider === 'claude' || r.provider === 'codex') setProvider(r.provider)
         const id = String(r.sessionId)
         setCodexSessionId(id)
         setCodexRunning(true)
@@ -102,10 +119,10 @@ function KnowledgeContent(): React.ReactElement {
 
   useEffect(() => {
     const log = codexLogRef.current
-    if (!log) return
+    if (!log || !codexAutoFollow) return
     const frame = requestAnimationFrame(() => { log.scrollTop = log.scrollHeight })
     return () => cancelAnimationFrame(frame)
-  }, [codexLogs, codexSessionId])
+  }, [codexAutoFollow, codexLogs, codexSessionId])
 
   async function review(id: number, decision: string) {
     try {
@@ -176,6 +193,25 @@ function KnowledgeContent(): React.ReactElement {
 
   async function runCodexSynthesis(allowDirty = false) {
     if (!window.harness) return
+    const settings = loadLocalSettings()
+    const providerLabel = provider === 'claude' ? 'Claude Code' : 'Codex'
+    const commandAuthorization = authorizePolicy(settings.policy.commandExecution, `Run ${providerLabel} synthesis for ${selectedIds.length} knowledge candidate(s)?`)
+    if (!commandAuthorization.allowed) {
+      if (commandAuthorization.blocked) showMsg(policyBlockedMessage(`${providerLabel} synthesis`), 'error')
+      return
+    }
+    const repeated = candidates.filter(candidate => selectedIds.includes(Number(candidate.id)) && Number(candidate.push_count || 0) > 0)
+    if (repeated.length > 0 && !settings.policy.repeatKnowledgePush) {
+      showMsg(`Repeated knowledge push is disabled. Deselect ${repeated.length} previously pushed candidate(s) or change the Policy Engine setting.`, 'error')
+      return
+    }
+    if (allowDirty) {
+      const dirtyAuthorization = authorizePolicy(settings.policy.dirtyWorktree, 'Run Codex synthesis while the shared knowledge repository has local changes?')
+      if (!dirtyAuthorization.allowed) {
+        if (dirtyAuthorization.blocked) showMsg(policyBlockedMessage('Dirty knowledge repository override'), 'error')
+        return
+      }
+    }
     setCodexLogs([])
     setPendingApprovals([])
     setPreview(null)
@@ -185,11 +221,18 @@ function KnowledgeContent(): React.ReactElement {
     setCodexRunning(true)
     setExecutorCollapsed(false)
     try {
-      const r = await window.harness.startKnowledgeCodexSynthesis(selectedProjectId, selectedIds, allowDirty)
-      if (r?.error || !r?.sessionId) throw new Error(String(r?.error || 'Codex synthesis start failed'))
+      const r = await window.harness.startKnowledgeCodexSynthesis(
+        selectedProjectId,
+        selectedIds,
+        allowDirty,
+        settings.policy.commandExecution === 'ask',
+        allowDirty && settings.policy.dirtyWorktree === 'ask',
+        provider,
+      )
+      if (r?.error || !r?.sessionId) throw new Error(String(r?.error || `${providerLabel} synthesis start failed`))
       const id = String(r.sessionId)
       setCodexSessionId(id)
-      showMsg(`Codex synthesis started for ${r.candidateCount || selectedIds.length} accepted candidate(s).`, 'info')
+      showMsg(`${providerLabel} synthesis started for ${r.candidateCount || selectedIds.length} accepted candidate(s).`, 'info')
       beginCodexPolling(id)
     } catch (e: any) {
       setCodexRunning(false)
@@ -277,9 +320,25 @@ function KnowledgeContent(): React.ReactElement {
   }
 
   async function pushRepo() {
+    const settings = loadLocalSettings()
+    const commitAuthorization = authorizePolicy(settings.policy.gitCommit, `Commit the reviewed shared knowledge changes for ${pushCandidateIds.length} candidate(s)?`)
+    if (!commitAuthorization.allowed) {
+      if (commitAuthorization.blocked) showMsg(policyBlockedMessage('Knowledge repository commit'), 'error')
+      return
+    }
+    const pushAuthorization = authorizePolicy(settings.policy.gitPush, `Push the shared knowledge repository and mark ${pushCandidateIds.length} candidate(s) as pushed?`)
+    if (!pushAuthorization.allowed) {
+      if (pushAuthorization.blocked) showMsg(policyBlockedMessage('Knowledge repository push'), 'error')
+      return
+    }
+    const repeated = candidates.filter(candidate => pushCandidateIds.includes(Number(candidate.id)) && Number(candidate.push_count || 0) > 0)
+    if (repeated.length > 0 && !settings.policy.repeatKnowledgePush) {
+      showMsg(`Repeated knowledge push is disabled for ${repeated.length} candidate(s). Change the Policy Engine setting before pushing again.`, 'error')
+      return
+    }
     try {
       const candidateIds = [...pushCandidateIds]
-      const r = await window.harness!.pushKnowledgeRepo(selectedProjectId, candidateIds)
+      const r = await window.harness!.pushKnowledgeRepo(selectedProjectId, candidateIds, settings.policy.gitPush === 'ask', settings.policy.gitCommit === 'ask')
       if (r?.error) showMsg(r.error, 'error')
       else {
         setRepo(r)
@@ -313,15 +372,8 @@ function KnowledgeContent(): React.ReactElement {
       flushOutput()
       if (entry.type === 'tool_call') {
         const itemType = typeof entry.params?.type === 'string' ? entry.params.type : entry.tool || 'tool'
-        const detail = extractLogText(entry.params)
-        const labels: Record<string, string> = {
-          userMessage: '用户输入',
-          reasoning: 'Codex 正在分析',
-          agentMessage: 'Codex 回复',
-          commandExecution: '命令执行',
-          fileChange: '文件修改',
-        }
-        lines.push(detail ? `${labels[itemType] || itemType}\n${detail}` : labels[itemType] || itemType)
+        const detail = extractLogText(entry.params)
+        lines.push(detail ? `${labelLogItem(itemType)}\n${detail}` : labelLogItem(itemType))
       } else if (entry.type === 'approval_required') {
         lines.push(`- Approval required: ${entry.message || entry.category || 'Codex requests approval'}`)
       } else if (entry.type === 'preview') {
@@ -342,11 +394,11 @@ function KnowledgeContent(): React.ReactElement {
   const STATUS_LABELS: Record<string, string> = { draft: 'Pending', accepted: 'Accepted', rejected: 'Rejected' }
 
   return (
-    <div className="knowledge-page">
+    <div className="page knowledge-page">
       <div className="knowledge-hero">
         <div>
           <h2>Knowledge Promotion</h2>
-          <p>Review accepted learnings, let Codex merge them into the shared knowledge base, then preview and publish the Git diff.</p>
+          <p>Review accepted learnings, let a managed AI executor merge them into the shared knowledge base, then preview and publish the Git diff.</p>
         </div>
         <span className="knowledge-hero-count">{selectedIds.length} selected</span>
       </div>
@@ -355,7 +407,7 @@ function KnowledgeContent(): React.ReactElement {
           <section className="knowledge-repo-panel">
             <div>
               <h3>Shared Knowledge Repository</h3>
-              <p>Pull a shared Git knowledge base locally, run Codex synthesis from accepted records, preview the diff, then push here or push manually.</p>
+              <p>Pull a shared Git knowledge base locally, run managed synthesis from accepted records, preview the diff, then push here or push manually.</p>
             </div>
             <div className="knowledge-repo-form">
               <label>Local path<input value={repoForm.localPath} onBlur={() => void inspectLocalPath()} onChange={e => setRepoForm({ ...repoForm, localPath: e.target.value })} placeholder="G:\\Project\\ai\\shared-knowledge" /></label>
@@ -363,13 +415,14 @@ function KnowledgeContent(): React.ReactElement {
               <label>Branch<input value={repoForm.branch} onChange={e => setRepoForm({ ...repoForm, branch: e.target.value })} placeholder="main" /></label>
             </div>
             <div className="knowledge-repo-actions">
-              <button className="button" onClick={configureRepo}>Save</button>
-              <button className="button" onClick={pullRepo} disabled={!repo.configured}>Pull / Clone</button>
-              <button className="button primary" onClick={() => void runCodexSynthesis(false)} disabled={codexRunning || !repo.configured || selectedIds.length === 0}>Run Codex Synthesis</button>
-              {dirtyBlocked && <button className="button danger" onClick={() => void runCodexSynthesis(true)} disabled={codexRunning || !repo.configured || selectedIds.length === 0}>Run Anyway</button>}
-              <button className="button" onClick={synthesizeRepo} disabled={codexRunning || !repo.configured || selectedIds.length === 0}>Prepare Draft</button>
-              <button className="button danger" onClick={cancelCodex} disabled={!codexRunning}>Stop Codex</button>
-              <button className="button success" onClick={pushRepo} disabled={codexRunning || !repo.configured || !repo.dirty}>Push via App</button>
+              <div className="segmented-control" aria-label="Knowledge synthesis provider">{(['codex', 'claude'] as AiProvider[]).map((item) => <button key={item} className={provider === item ? 'active' : ''} disabled={codexRunning} onClick={() => setProvider(item)}>{item === 'claude' ? 'Claude Code' : 'Codex'}</button>)}</div>
+              <button className="button" onClick={configureRepo}>{text('Save', '保存')}</button>
+              <button className="button" onClick={pullRepo} disabled={!repo.configured}>{text('Pull / Clone', '拉取 / 克隆')}</button>
+              <button className="button primary" onClick={() => void runCodexSynthesis(false)} disabled={codexRunning || !repo.configured || selectedIds.length === 0}>{text('Run', '运行')} {provider === 'claude' ? 'Claude Code' : 'Codex'} {text('Synthesis', '分析')}</button>
+              {dirtyBlocked && <button className="button danger" onClick={() => void runCodexSynthesis(true)} disabled={codexRunning || !repo.configured || selectedIds.length === 0}>{text('Run Anyway', '仍然运行')}</button>}
+              <button className="button" onClick={synthesizeRepo} disabled={codexRunning || !repo.configured || selectedIds.length === 0}>{text('Prepare Draft', '准备草稿')}</button>
+              <button className="button danger" onClick={cancelCodex} disabled={!codexRunning}>{text('Stop Codex', '停止 Codex')}</button>
+              <button className="button success" onClick={pushRepo} disabled={codexRunning || !repo.configured || !repo.dirty}>{text('Push via App', '通过应用推送')}</button>
             </div>
             {repo.configured && <div className="knowledge-repo-status">
               <span className={`knowledge-tag ${repo.isGitRepo ? 'tag-ok' : 'tag-warn'}`}>{repo.isGitRepo ? 'Git Ready' : 'Not a Git repo'}</span>
@@ -381,14 +434,15 @@ function KnowledgeContent(): React.ReactElement {
           </section>
           {executorCollapsed && <section className="knowledge-executor-dock">
             <div>
-              <strong>{hasExecutorHistory ? '执行结果已收起' : 'Codex 执行器待命'}</strong>
-              <span>{hasExecutorHistory ? '展开后可查看本地 Diff、Codex 日志与人工反馈。' : '运行 Codex 或生成预览后，右侧执行区会自动展开。'}</span>
+              <strong>{hasExecutorHistory ? 'Executor collapsed' : 'Codex executor ready'}</strong>
+              <span>{hasExecutorHistory ? 'Expand to inspect local diff, Codex logs, and human feedback.' : 'Run Codex or prepare a preview to open the executor rail.'}</span>
             </div>
-            {hasExecutorHistory && <button className="button" onClick={() => setExecutorCollapsed(false)}>展开执行区</button>}
+            {provider === 'claude' && <div className="notice">Claude Code synthesis uses non-interactive acceptEdits mode. Review the local diff before publishing; per-tool Codex approval prompts are not available.</div>}
+            {hasExecutorHistory && <button className="button" onClick={() => setExecutorCollapsed(false)}>{text('Open executor', '打开执行器')}</button>}
           </section>}
           <div className="knowledge-tabs">
         {(['draft', 'accepted', 'rejected'] as const).map(t => (
-          <button key={t} onClick={() => setTab(t)} className={tab === t ? 'active' : ''}>{t === 'draft' ? 'Pending' : t === 'accepted' ? 'Accepted' : 'Rejected'}</button>
+          <button key={t} onClick={() => setTab(t)} className={tab === t ? 'active' : ''}>{t === 'draft' ? text('Pending', '待审核') : t === 'accepted' ? text('Accepted', '已通过') : text('Rejected', '已拒绝')}</button>
         ))}
       </div>
       {msg && <p className={`knowledge-message ${msgKind}`}>{msg}</p>}
@@ -403,18 +457,18 @@ function KnowledgeContent(): React.ReactElement {
               <div className="knowledge-keywords">
                 <span className="knowledge-tag tag-type">{TYPE_LABELS[c.type] || c.type}</span>
                 {c.run_id && <span className="knowledge-tag tag-run">Run {c.run_id}</span>}
-                {Number(c.push_count || 0) > 0 && <span className="knowledge-tag tag-ok" title={c.last_pushed_at ? `Last pushed: ${c.last_pushed_at}` : undefined}>已推送{Number(c.push_count) > 1 ? ` ×${c.push_count}` : ''}</span>}
+                {Number(c.push_count || 0) > 0 && <span className="knowledge-tag tag-ok" title={c.last_pushed_at || undefined}>Pushed{Number(c.push_count) > 1 ? ` x${c.push_count}` : ''}</span>}
               </div>
             </div>
             <span className={`knowledge-status ${c.status}`}>{STATUS_LABELS[c.status] || c.status}</span>
           </div>
           <p className="knowledge-summary">{c.summary}</p>
           <div className="knowledge-actions">
-            <button className="button" onClick={() => setExpandedId(expandedId === c.id ? null : c.id)}>{expandedId === c.id ? 'Hide Details' : 'View Details'}</button>
+            <button className="button" onClick={() => setExpandedId(expandedId === c.id ? null : c.id)}>{expandedId === c.id ? text('Hide Details', '收起详情') : text('View Details', '查看详情')}</button>
             {tab === 'draft' && (
               <>
-                <button className="button success" onClick={() => review(c.id, 'accepted')}>Accept</button>
-                <button className="button danger" onClick={() => review(c.id, 'rejected')}>Reject</button>
+                <button className="button success" onClick={() => review(c.id, 'accepted')}>{text('Accept', '通过')}</button>
+                <button className="button danger" onClick={() => review(c.id, 'rejected')}>{text('Reject', '拒绝')}</button>
               </>
             )}
           </div>
@@ -430,47 +484,51 @@ function KnowledgeContent(): React.ReactElement {
         </main>
         {!executorCollapsed && <aside className="knowledge-executor-rail">
           <div className="knowledge-executor-toolbar">
-            <div><strong>执行工作台</strong><span>{codexRunning ? 'Codex 正在运行' : '预览、日志与人工审批'}</span></div>
-            <button className="button" onClick={() => setExecutorCollapsed(true)} disabled={codexRunning || pendingApprovals.length > 0}>收起</button>
+              <div><strong>Executor workbench</strong><span>{codexRunning ? `${provider === 'claude' ? 'Claude Code' : 'Codex'} is running` : 'Preview, logs, and human approval'}</span></div>
+            <button className="button" onClick={() => setExecutorCollapsed(true)} disabled={codexRunning || pendingApprovals.length > 0}>{text('Collapse', '收起')}</button>
           </div>
           <section className="knowledge-executor-card">
             <div className="knowledge-executor-head">
               <div>
                 <strong>Local preview diff</strong>
-                <span>最终写入共享知识库的文件差异</span>
+                <span>Final file changes that will be written to the shared knowledge repository</span>
               </div>
               {preview?.manualPushCommand && <code>{preview.manualPushCommand}</code>}
             </div>
             {preview?.diff
               ? <pre className="knowledge-diff-pre">{preview.diff}</pre>
-              : <div className="knowledge-empty-panel">Codex 完成后，这里展示共享知识库本地仓库的 Git diff。</div>}
+              : <div className="knowledge-empty-panel">After Codex finishes, this panel shows the local Git diff for the shared knowledge repository.</div>}
           </section>
           <section className="knowledge-executor-card">
             <div className="knowledge-executor-head">
               <div>
-                <strong>Codex synthesis</strong>
-                <span>Codex 分析、审批和运行状态</span>
+                <strong>{provider === 'claude' ? 'Claude Code' : 'Codex'} synthesis</strong>
+                <span>Analysis output, approval requests, and runtime status</span>
               </div>
               {codexSessionId && <code>{codexSessionId}</code>}
             </div>
             {pendingApproval && <div className={`notice ${confirmDangerous ? 'error' : ''}`}>
-              <strong>{confirmDangerous ? 'SECOND CONFIRMATION REQUIRED' : `${pendingApproval.category || 'external'} approval · 1/${pendingApprovals.length}`}</strong>
+              <strong>{confirmDangerous ? 'SECOND CONFIRMATION REQUIRED' : `${pendingApproval.category || 'external'} approval - 1/${pendingApprovals.length}`}</strong>
               <div style={{ margin: '6px 0' }}>{pendingApproval.message}</div>
               <div className="actions">
-                <button className="button primary" onClick={() => void respondCodex('allow_once')}>{confirmDangerous ? 'Confirm allow' : 'Allow once'}</button>
-                <button className="button" onClick={() => void respondCodex('allow_session')}>Allow session</button>
-                <button className="button danger" onClick={() => void respondCodex('deny')}>Deny</button>
+                <button className="button primary" onClick={() => void respondCodex('allow_once')}>{confirmDangerous ? text('Confirm allow', '确认允许') : text('Allow once', '仅允许一次')}</button>
+                <button className="button" onClick={() => void respondCodex('allow_session')}>{text('Allow session', '本次会话允许')}</button>
+                <button className="button danger" onClick={() => void respondCodex('deny')}>{text('Deny', '拒绝')}</button>
               </div>
             </div>}
             {codexLogs.length > 0 || codexSessionId
-              ? <pre ref={codexLogRef} className="knowledge-codex-pre">{codexLogs.length === 0 ? 'Waiting for Codex events...' : formatCodexLogs(codexLogs)}</pre>
-              : <div className="knowledge-empty-panel">这里展示 Codex 的运行状态、分析输出和审批请求。</div>}
+              ? <pre ref={codexLogRef} className="knowledge-codex-pre" onScroll={(event) => { const target = event.currentTarget; setCodexAutoFollow(target.scrollTop + target.clientHeight >= target.scrollHeight - 8) }}>{codexLogs.length === 0 ? 'Waiting for Codex events...' : formatCodexLogs(codexLogs)}</pre>
+              : <div className="knowledge-empty-panel">Codex runtime status, analysis output, and approval requests appear here.</div>}
+            {codexSessionId && <div className="knowledge-log-controls">
+              <span className={`badge ${codexAutoFollow ? 'success' : 'warning'}`}>{codexAutoFollow ? 'Following output' : 'Scroll paused'}</span>
+              <button className="button" onClick={() => { setCodexAutoFollow(true); requestAnimationFrame(() => { if (codexLogRef.current) codexLogRef.current.scrollTop = codexLogRef.current.scrollHeight }) }}>{text('Follow', '跟随')}</button>
+            </div>}
             {codexSessionId && <div className="knowledge-feedback-box">
-              <label>人工审批/修改意见</label>
-              <textarea value={codexFeedback} onChange={e => setCodexFeedback(e.target.value)} placeholder="例如：不要新建 inbox 草稿，合并到 retrieval-playbook.md，并保留原有章节结构。" />
+              <label>Human approval / revision feedback</label>
+              <textarea value={codexFeedback} onChange={e => setCodexFeedback(e.target.value)} placeholder="Example: merge this into retrieval-playbook.md, keep the current section structure, and do not create an inbox draft." />
               <div className="knowledge-feedback-actions">
-                <button className="button primary" onClick={() => void sendCodexFeedback()} disabled={codexRunning || !codexFeedback.trim()}>Send feedback</button>
-                <span>认可结果则点击左侧 Push via App；不认可就在这里要求 Codex 继续修改。</span>
+                <button className="button primary" onClick={() => void sendCodexFeedback()} disabled={codexRunning || !codexFeedback.trim()}>{text('Send feedback', '发送反馈')}</button>
+                <span>Accept the result with Push via App, or request another Codex revision here.</span>
               </div>
             </div>}
           </section>

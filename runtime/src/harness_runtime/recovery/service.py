@@ -136,6 +136,39 @@ def scan_sessions(project_id: Optional[str] = None) -> list[dict]:
     return results
 
 
+def archive_stale_session(project_id: str, session_id: str) -> dict:
+    """Archive a stale derived session projection without touching its run or worktree."""
+    if not project_id or not session_id:
+        raise ValueError("RECOVERY_SESSION_REQUIRED")
+    db = get_db()
+    executor = db.execute(
+        "SELECT id, status FROM executor_sessions WHERE id = ? AND project_id = ?",
+        (session_id, project_id),
+    ).fetchone()
+    if executor:
+        if executor["status"] not in ("orphan", "lost"):
+            raise ValueError(f"RECOVERY_SESSION_NOT_STALE: {session_id}")
+        db.execute("UPDATE executor_sessions SET status = 'archived' WHERE id = ?", (session_id,))
+        db.commit()
+        return {"sessionId": session_id, "sessionType": "executor", "status": "archived"}
+
+    terminal = db.execute(
+        "SELECT id, status FROM terminal_sessions WHERE id = ? AND project_id = ?",
+        (session_id, project_id),
+    ).fetchone()
+    if terminal:
+        if terminal["status"] != "interrupted":
+            raise ValueError(f"RECOVERY_SESSION_NOT_STALE: {session_id}")
+        db.execute(
+            "UPDATE terminal_sessions SET status = 'archived', updated_at = datetime('now') WHERE id = ?",
+            (session_id,),
+        )
+        db.commit()
+        return {"sessionId": session_id, "sessionType": "terminal", "status": "archived"}
+
+    raise ValueError(f"RECOVERY_SESSION_NOT_FOUND: {session_id}")
+
+
 def cleanup_temp_files(project_root: Path) -> list[str]:
     """Clean up stale temporary files from interrupted operations.
 

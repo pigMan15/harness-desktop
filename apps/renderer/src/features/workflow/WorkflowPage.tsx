@@ -9,6 +9,7 @@ import { DiagnosticsPanel } from '../workflow-studio/DiagnosticsPanel'
 import { WorkflowInspector } from '../workflow-studio/WorkflowInspector'
 import { useWorkflowDraft } from '../workflow-studio/useWorkflowDraft'
 import { ProjectRequired, useWorkspace } from '../layout/WorkspaceContext'
+import { useLanguage } from '../settings/LanguageContext'
 
 type StudioTab = 'routes' | 'nodes' | 'recovery' | 'rules' | 'yaml' | 'versions'
 interface WorkflowData {
@@ -36,6 +37,7 @@ function cloneRoutes(routes: WorkflowData['routes']): WorkflowData['routes'] {
 }
 
 function WorkflowContent(): React.ReactElement {
+  const { text } = useLanguage()
   const { selectedProjectId, selectedRun } = useWorkspace()
   const [data, setData] = useState<WorkflowData>()
   const [catalog, setCatalog] = useState<WorkflowNode[]>([])
@@ -107,7 +109,7 @@ function WorkflowContent(): React.ReactElement {
     try {
       const allRoutes = saveCurrentRoute()
       const result = await window.harness.previewWorkflow(selectedProjectId, mergedCatalog(), draft.selectedIntent, draft.selectedRisk, draft.nodes.map((node) => node.id), {
-        routes: allRoutes, hardRules: data.hard_rules, failureRecovery: recovery, gateMeanings: data.gate_meanings,
+        routes: allRoutes, visualEdges: draft.edges, hardRules: data.hard_rules, failureRecovery: recovery, gateMeanings: data.gate_meanings,
       }) as unknown as PreviewData
       setPreview(result); draft.setDiagnostics(result.diagnostics || [])
       if (result.yaml) setYamlDraft(result.yaml)
@@ -173,25 +175,25 @@ function WorkflowContent(): React.ReactElement {
   const tabs: Array<[StudioTab, string]> = [['routes', 'Routes'], ['nodes', 'Nodes'], ['recovery', 'Recovery'], ['rules', 'Rules'], ['yaml', 'YAML'], ['versions', 'Versions']]
   return <section className="page workflow-studio-page">
     <header className="page-header"><div><h1>Workflow Studio</h1>{selectedRun && <span className="muted mono">Run {selectedRun.run_id} · frozen {selectedRun.required_nodes.length} nodes</span>}</div><div className="actions">
-      <button className="button icon-button" onClick={() => void load()} title="Refresh workflow"><RefreshCw size={15} /></button>
-      <button className="button" onClick={() => void importWorkflow()}><FileUp size={15} />Import</button>
+      <button className="button icon-button" onClick={() => void load()} title={text('Refresh workflow', '刷新工作流')}><RefreshCw size={15} /></button>
+      <button className="button" onClick={() => void importWorkflow()}><FileUp size={15} />{text('Import', '导入')}</button>
       <button className="button" onClick={() => void window.harness?.exportWorkflow(selectedProjectId, 'yaml')}><Download size={15} />YAML</button>
       <button className="button" onClick={() => void window.harness?.exportWorkflow(selectedProjectId, 'zip')}><Download size={15} />ZIP</button>
-      <button className="button primary" disabled={busy} onClick={() => void (tab === 'yaml' ? previewYaml() : previewStructured())}>Preview</button>
-      <button className="button primary" disabled={busy || !preview?.success} onClick={() => void applyPreview()}><Save size={15} />Apply</button>
+      <button className="button primary" disabled={busy} onClick={() => void (tab === 'yaml' ? previewYaml() : previewStructured())}>{text('Preview', '预览')}</button>
+      <button className="button primary" disabled={busy || !preview?.success} onClick={() => void applyPreview()}><Save size={15} />{text('Apply', '应用')}</button>
     </div></header>
     {message && <div className={message.startsWith('Workflow') ? 'notice success' : 'notice error'}>{message}</div>}
     <div className="studio-tabs">{tabs.map(([id, label]) => <button key={id} className={tab === id ? 'active' : ''} onClick={() => setTab(id)}>{label}</button>)}</div>
     {tab === 'routes' && data && <ReactFlowProvider><RouteEditor onSelect={selectRoute} /><div className="studio-grid">
       <NodeCatalog nodes={mergedCatalog()} lockedIds={lockedIds} onCreateNode={createNode} onAddNode={(nodeId) => { const node = mergedCatalog().find((item) => item.id === nodeId); if (node) draft.addNode(node) }} />
-      <div className="studio-canvas"><div className="canvas-toolbar"><span>{draft.selectedIntent} / {draft.selectedRisk}</span><div className="actions"><button className="button icon-button" onClick={draft.undo} title="Undo"><Undo2 size={15} /></button><button className="button icon-button" onClick={draft.redo} title="Redo"><Redo2 size={15} /></button></div></div><WorkflowCanvas /><DiagnosticsPanel /></div>
+      <div className="studio-canvas"><div className="canvas-toolbar"><span>{draft.selectedIntent} / {draft.selectedRisk}</span><div className="actions"><button className="button icon-button" onClick={draft.undo} title={text('Undo', '撤销')}><Undo2 size={15} /></button><button className="button icon-button" onClick={draft.redo} title={text('Redo', '重做')}><Redo2 size={15} /></button></div></div><WorkflowCanvas /><DiagnosticsPanel /></div>
       <WorkflowInspector roles={data.roles} gateIds={Object.keys(data.gate_definitions)} lockedIds={lockedIds} />
     </div></ReactFlowProvider>}
     {tab === 'nodes' && <div className="studio-table"><table className="data-table"><thead><tr><th>ID</th><th>Role</th><th>Artifact</th><th>Gates</th></tr></thead><tbody>{mergedCatalog().map((node) => <tr key={node.id}><td className="mono">{node.id}</td><td>{node.role}</td><td className="mono">{node.artifact}</td><td>{node.gates.join(', ') || '-'}</td></tr>)}</tbody></table></div>}
     {tab === 'recovery' && data && <div className="configuration-pane"><label className="field">Maximum automatic retries<input type="number" min="0" max="10" value={recovery.max_auto_retries_per_gate ?? 2} onChange={(event) => setRecovery((current) => ({ ...current, max_auto_retries_per_gate: Number(event.target.value) }))} /></label><table className="data-table"><thead><tr><th>Gate</th><th>Recovery node</th></tr></thead><tbody>{Object.keys(data.gate_definitions).map((gate) => <tr key={gate}><td>{gate}</td><td><select value={recovery.gate_to_node?.[gate] || ''} onChange={(event) => setRecovery((current) => ({ ...current, gate_to_node: { ...current.gate_to_node, [gate]: event.target.value } }))}><option value="">None</option>{catalog.map((node) => <option key={node.id}>{node.id}</option>)}</select></td></tr>)}</tbody></table></div>}
     {tab === 'rules' && data && <div className="rules-grid"><section><h2>Project hard rules</h2><pre>{JSON.stringify(data.hard_rules, null, 2)}</pre></section><section><h2>Effective hard rules</h2><pre>{JSON.stringify(data.effective_hard_rules, null, 2)}</pre></section></div>}
     {tab === 'yaml' && <div className="yaml-editor"><textarea spellCheck={false} value={yamlDraft} onChange={(event) => { setYamlDraft(event.target.value); setPreview(undefined) }} /><DiagnosticsPanel /></div>}
-    {tab === 'versions' && <div className="studio-table"><table className="data-table"><thead><tr><th>Version</th><th>Hash</th><th>Author</th><th>Summary</th><th>Created</th><th /></tr></thead><tbody>{versions.map((version) => <tr key={version.id}><td>#{version.id}</td><td className="mono">{version.content_hash.slice(0, 12)}</td><td>{version.author}</td><td>{version.summary}</td><td>{new Date(version.created_at).toLocaleString()}</td><td><button className="button" onClick={() => void restore(version)}>Restore</button></td></tr>)}</tbody></table></div>}
+    {tab === 'versions' && <div className="studio-table"><table className="data-table"><thead><tr><th>Version</th><th>Hash</th><th>Author</th><th>Summary</th><th>Created</th><th /></tr></thead><tbody>{versions.map((version) => <tr key={version.id}><td>#{version.id}</td><td className="mono">{version.content_hash.slice(0, 12)}</td><td>{version.author}</td><td>{version.summary}</td><td>{new Date(version.created_at).toLocaleString()}</td><td><button className="button" onClick={() => void restore(version)}>{text('Restore', '恢复')}</button></td></tr>)}</tbody></table></div>}
     {Boolean(preview?.diff) && <details className="semantic-diff" open><summary>Semantic diff</summary><pre>{JSON.stringify(preview?.diff, null, 2)}</pre></details>}
   </section>
 }

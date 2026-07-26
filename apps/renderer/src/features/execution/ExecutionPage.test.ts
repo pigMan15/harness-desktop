@@ -6,8 +6,9 @@ import { fileURLToPath } from 'node:url'
 const source = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), 'ExecutionPage.tsx'), 'utf-8')
 
 describe('ExecutionPage source contract', () => {
-  it('uses the real Codex probe and has no Fake entry', () => {
-    expect(source).toContain('window.harness.probeExecution(selectedProjectId)')
+  it('uses provider-aware managed execution and has no Fake entry', () => {
+    expect(source).toContain('window.harness.probeExecution(selectedProjectId, provider)')
+    expect(source).toContain("(['codex', 'claude'] as AiProvider[])")
     expect(source).toContain("features?.includes('app-server')")
     expect(source).not.toContain('Start (Fake)')
   })

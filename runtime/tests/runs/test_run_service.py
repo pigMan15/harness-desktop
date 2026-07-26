@@ -2,6 +2,7 @@
 
 import json
 import shutil
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -15,6 +16,7 @@ from harness_runtime.runs.service import (
     list_runs,
     pause_active_run,
     pause_run,
+    preflight_run_merge_back,
     resume_active_run,
     resume_run,
     switch_run,
@@ -57,6 +59,99 @@ def test_dirty_worktree_message_includes_status_lines_and_truncates():
     assert " M file-19.txt" in message
     assert "file-20.txt" not in message
     assert "... and 2 more" in message
+
+
+def _git(cwd: Path, *args: str) -> str:
+    return subprocess.run(
+        ["git", "-c", "core.longpaths=true", *args],
+        cwd=cwd,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+
+
+@pytest.fixture
+def merge_repository(tmp_path, monkeypatch):
+    project_root = tmp_path / "project"
+    run_worktree = tmp_path / "run-worktree"
+    project_root.mkdir()
+    _git(project_root, "init", "-b", "main")
+    _git(project_root, "config", "user.email", "harness@example.invalid")
+    _git(project_root, "config", "user.name", "Harness Tests")
+    (project_root / "shared.txt").write_text("base\n", encoding="utf-8")
+    _git(project_root, "add", "shared.txt")
+    _git(project_root, "commit", "-m", "base")
+    _git(project_root, "worktree", "add", "-b", "codex/test-run", str(run_worktree))
+    (run_worktree / "shared.txt").write_text("base\nrun change\n", encoding="utf-8")
+    (run_worktree / "added.txt").write_text("added\n", encoding="utf-8")
+    _git(run_worktree, "add", "shared.txt", "added.txt")
+    _git(run_worktree, "commit", "-m", "run change")
+    state = {
+        "run_id": "test-run",
+        "branch_name": "codex/test-run",
+        "worktree_path": str(run_worktree),
+    }
+    monkeypatch.setattr(
+        "harness_runtime.runs.service.read_run_state",
+        lambda *_args, **_kwargs: (state.copy(), "revision-1"),
+    )
+    return project_root, run_worktree
+
+
+def test_merge_preflight_reports_ready_without_changing_target_head(merge_repository):
+    project_root, _run_worktree = merge_repository
+    before = _git(project_root, "rev-parse", "HEAD")
+
+    result = preflight_run_merge_back(project_root, "test-run", "revision-1")
+
+    assert result["status"] == "ready"
+    assert result["canMerge"] is True
+    assert result["fastForward"] is True
+    assert result["ahead"] == 1
+    assert result["behind"] == 0
+    assert result["fileSummary"]["added"] == 1
+    assert result["fileSummary"]["modified"] == 1
+    assert result["issues"] == []
+    assert _git(project_root, "rev-parse", "HEAD") == before
+
+
+def test_merge_preflight_blocks_dirty_target_and_lists_files(merge_repository):
+    project_root, _run_worktree = merge_repository
+    (project_root / "local.txt").write_text("local\n", encoding="utf-8")
+
+    result = preflight_run_merge_back(project_root, "test-run", "revision-1")
+
+    assert result["canMerge"] is False
+    assert result["issues"][0]["code"] == "TARGET_WORKTREE_DIRTY"
+    assert result["targetStatus"]["total"] == 1
+    assert result["targetStatus"]["entries"][0]["path"] == "local.txt"
+
+
+def test_merge_preflight_blocks_dirty_run_worktree(merge_repository):
+    project_root, run_worktree = merge_repository
+    (run_worktree / "pending.txt").write_text("pending\n", encoding="utf-8")
+
+    result = preflight_run_merge_back(project_root, "test-run", "revision-1")
+
+    assert result["canMerge"] is False
+    assert any(issue["code"] == "RUN_WORKTREE_DIRTY" for issue in result["issues"])
+    assert result["runStatus"]["total"] == 1
+
+
+def test_merge_preflight_explains_diverged_branches(merge_repository):
+    project_root, _run_worktree = merge_repository
+    (project_root / "target.txt").write_text("target\n", encoding="utf-8")
+    _git(project_root, "add", "target.txt")
+    _git(project_root, "commit", "-m", "target change")
+
+    result = preflight_run_merge_back(project_root, "test-run", "revision-1")
+
+    assert result["canMerge"] is False
+    assert result["fastForward"] is False
+    assert result["ahead"] == 1
+    assert result["behind"] == 1
+    assert any(issue["code"] == "NON_FAST_FORWARD" for issue in result["issues"])
 
 
 class TestCreateRun:

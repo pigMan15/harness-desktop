@@ -1,0 +1,19 @@
+{
+  "run_id": "run-merge-ui-encoding-fix-20260727",
+  "intent": "BUG_FIX",
+  "risk": "LOW",
+  "changed_files": [
+    "apps/renderer/src/features/runs/RunsPage.tsx",
+    "apps/renderer/src/features/runs/unicode-source.test.ts"
+  ],
+  "commands": [
+    {"name":"Unicode 源码回归测试","command":"pnpm.cmd --filter @harness/renderer test -- unicode-source.test.ts","cwd":"G:\\Project\\ai\\harness-desktop","exit_code":0,"result":"12 个测试文件、36 项测试全部通过。"},
+    {"name":"Renderer 类型检查","command":"pnpm.cmd --filter @harness/renderer typecheck","cwd":"G:\\Project\\ai\\harness-desktop","exit_code":0,"result":"TypeScript 类型检查通过。"},
+    {"name":"Renderer 正式构建","command":"pnpm.cmd --filter @harness/renderer build","cwd":"G:\\Project\\ai\\harness-desktop","exit_code":0,"result":"Renderer 正式构建通过。"},
+    {"name":"Unicode 残留扫描","command":"Select-String -Path apps/renderer/src/features/runs/RunsPage.tsx -Pattern '\\\\u[0-9a-fA-F]{4}'","cwd":"G:\\Project\\ai\\harness-desktop","exit_code":0,"result":"无匹配输出，Runs 页面不存在字面量 Unicode 转义。"}
+  ],
+  "gates":{"G1_REQUIREMENTS":"NOT_REQUIRED","G2_DESIGN":"NOT_REQUIRED","G3_COMPILE":"PASS","G4_UNIT_TEST":"PASS","G5_ATDD":"NOT_REQUIRED","G6_EVIDENCE":"PASS","G7_PRERELEASE":"NOT_REQUIRED","G8_ACCEPTANCE":"PASS"},
+  "artifacts":["00-intake.md","11-development.md","12-compile.md","13-unit-test.md","15-evidence.json","18-acceptance-report.md","19-knowledge-promotion.md"],
+  "waivers":[],
+  "residual_risks":["未重新打包 Electron 安装程序；本地开发模式重新加载 Renderer 后即可验证。","存在原有 Renderer 大 chunk 构建警告，与本次文案修复无关。"]
+}

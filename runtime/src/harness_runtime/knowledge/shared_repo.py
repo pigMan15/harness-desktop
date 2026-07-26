@@ -128,7 +128,13 @@ def pull_repo(project_id: str) -> dict:
     return repo_status(project_id)
 
 
-def push_repo(project_id: str, candidate_ids: Iterable[int] = ()) -> dict:
+def push_repo(project_id: str, candidate_ids: Iterable[int] = (), allow_repeat: bool = True) -> dict:
+    from .service import already_pushed_candidate_ids
+    selected_ids = list(candidate_ids)
+    if not allow_repeat:
+        repeated = already_pushed_candidate_ids(project_id, selected_ids)
+        if repeated:
+            raise ValueError(f"KNOWLEDGE_REPEAT_PUSH_BLOCKED: {repeated}")
     config = _require_config(project_id)
     path = Path(config["localPath"])
     _require_git_repo(path)
@@ -137,7 +143,7 @@ def push_repo(project_id: str, candidate_ids: Iterable[int] = ()) -> dict:
     if staged["returncode"] == 1:
         _git(path, "commit", "-m", "Promote Harness knowledge")
     result = _git(path, "push")
-    promotion = mark_candidates_pushed(project_id, list(candidate_ids))
+    promotion = mark_candidates_pushed(project_id, selected_ids)
     status = repo_status(project_id)
     status["pushOutput"] = result["stdout"] or result["stderr"]
     status["pushedCandidateIds"] = promotion["candidateIds"]
@@ -188,7 +194,9 @@ def synthesis_context(
     project_root: Path,
     candidate_ids: Iterable[int],
     allow_dirty: bool = False,
+    allow_repeat: bool = True,
 ) -> dict:
+    from .service import already_pushed_candidate_ids
     config = _require_config(project_id)
     path = Path(config["localPath"])
     _require_git_repo(path)
@@ -198,6 +206,10 @@ def synthesis_context(
     selected_ids = {int(candidate_id) for candidate_id in candidate_ids}
     if not selected_ids:
         raise ValueError("KNOWLEDGE_CANDIDATES_REQUIRED")
+    if not allow_repeat:
+        repeated = already_pushed_candidate_ids(project_id, list(selected_ids))
+        if repeated:
+            raise ValueError(f"KNOWLEDGE_REPEAT_PUSH_BLOCKED: {repeated}")
 
     accepted = list_candidates_with_content(project_id, project_root, status="accepted")
     selected = [candidate for candidate in accepted if int(candidate.get("id", 0)) in selected_ids]

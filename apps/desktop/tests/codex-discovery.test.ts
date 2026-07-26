@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { mkdtemp, readFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
-import { CodexSettingsStore, discoverCodex, knownHermesCandidates } from '../src/main/codex-discovery'
+import { AiCliSettingsStore, CodexSettingsStore, discoverCodex, knownHermesCandidates } from '../src/main/codex-discovery'
 
 describe('Codex discovery', () => {
   it('continues after an inaccessible WindowsApps candidate', async () => {
@@ -70,5 +70,16 @@ describe('Codex discovery', () => {
 
     expect(await store.load()).toMatchObject({ executablePath: 'C:/tools/codex.exe', source: 'user' })
     expect(JSON.parse(await readFile(settingsPath, 'utf8')).version).toContain('0.145.0')
+  })
+
+  it('keeps Codex and Claude Code paths in the provider-aware store', async () => {
+    const directory = await mkdtemp(path.join(os.tmpdir(), 'harness-ai-cli-settings-'))
+    const settingsPath = path.join(directory, 'ai-cli-settings.json')
+    const store = new AiCliSettingsStore(settingsPath)
+    await store.save('codex', { executablePath: 'C:/tools/codex.exe', version: 'codex-cli 0.145.0', lastProbeStatus: 'available', lastProbeAt: '2026-07-26T00:00:00Z', source: 'user' })
+    await store.save('claude', { executablePath: 'C:/tools/claude.exe', version: 'claude 1.2.3', lastProbeStatus: 'available', lastProbeAt: '2026-07-26T00:00:00Z', source: 'user' })
+
+    expect((await store.load('codex'))?.executablePath).toContain('codex.exe')
+    expect((await store.load('claude'))?.executablePath).toContain('claude.exe')
   })
 })

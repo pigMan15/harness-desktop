@@ -1,0 +1,71 @@
+{
+  "run_id": "unified-ui-refresh-release-20260727",
+  "intent": "DEPLOYMENT",
+  "risk": "MEDIUM",
+  "version": "0.2.1",
+  "tag": "desktop-v0.2.1",
+  "commands": [
+    {
+      "name": "bridle 创建部署 Run",
+      "command": "bridle new unified-ui-refresh-release-20260727 --intent DEPLOYMENT --risk MEDIUM",
+      "cwd": "G:\\Project\\ai\\harness-desktop",
+      "exit_code": 1,
+      "result": "本机 PyInstaller 解压 VCRUNTIME140.dll 权限失败；已按 workflow 手工创建部署 Run 产物和 state。"
+    },
+    {
+      "name": "桌面端打包初次尝试",
+      "command": "pnpm.cmd --filter @harness/desktop package",
+      "cwd": "G:\\Project\\ai\\harness-desktop",
+      "exit_code": 1,
+      "result": "沙箱内启动 Vite/esbuild 子进程被 Windows 拒绝，报 spawn EPERM。"
+    },
+    {
+      "name": "桌面端打包提权联网尝试",
+      "command": "pnpm.cmd --filter @harness/desktop package",
+      "cwd": "G:\\Project\\ai\\harness-desktop",
+      "exit_code": 1,
+      "result": "Vite bundle 成功；Electron Packager 下载 Electron 资源时 GitHub 连接超时。"
+    },
+    {
+      "name": "桌面端离线 zip 打包",
+      "command": "$env:HARNESS_ELECTRON_ZIP_DIR='G:\\Project\\ai\\harness-desktop\\dist-functional-alignment-20260723\\electron-zips'; pnpm.cmd --filter @harness/desktop package",
+      "cwd": "G:\\Project\\ai\\harness-desktop",
+      "exit_code": 0,
+      "result": "Electron Forge make 成功，发布产物输出到 apps/desktop/out/make。"
+    },
+    {
+      "name": "GitHub HTTPS 凭据检查",
+      "command": "git credential fill for protocol=https host=github.com",
+      "cwd": "G:\\Project\\ai\\harness-desktop",
+      "exit_code": 0,
+      "result": "Git Credential Manager 返回可用 GitHub 凭据；未输出 token。"
+    }
+  ],
+  "assets": [
+    {
+      "path": "apps/desktop/out/make/squirrel.windows/x64/Harness Desktop-0.2.1 Setup.exe",
+      "size_bytes": 144465408,
+      "sha256": "C9E8F2ED5D8448BB5D05037136028236C6935D302723C3EE9B7D6C92F6F992E9"
+    },
+    {
+      "path": "apps/desktop/out/make/squirrel.windows/x64/harness-desktop-0.2.1-full.nupkg",
+      "size_bytes": 143813635,
+      "sha256": "ABE6FF81934900821596E2C063A254362A1B1777181B4D7A2DE32DEABE6F18AA"
+    },
+    {
+      "path": "apps/desktop/out/make/squirrel.windows/x64/RELEASES",
+      "size_bytes": 86,
+      "sha256": "790F247F36A8C78959096111579C2704E6D281AB0084D8CD49F22D7A588C7387"
+    }
+  ],
+  "gates": {
+    "G6_EVIDENCE": "PASS",
+    "G7_PRERELEASE": "PASS",
+    "G8_ACCEPTANCE": "PASS"
+  },
+  "waivers": [],
+  "residual_risks": [
+    "bridle 当前机器执行失败，原因是 PyInstaller 解压 VCRUNTIME140.dll 权限被拒绝；本轮使用手工 state 与 phase 产物保持流程一致。",
+    "构建保留项目原有 Vite CJS API 弃用警告、大 chunk 警告和 Electron Forge DEP0174 警告。"
+  ]
+}

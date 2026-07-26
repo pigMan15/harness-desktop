@@ -3,6 +3,7 @@
 import pytest
 
 from harness_runtime.knowledge.service import (
+    already_pushed_candidate_ids,
     list_candidates,
     list_candidates_with_content,
     mark_candidates_pushed,
@@ -82,3 +83,4 @@ class TestPromotion:
         assert candidate["status"] == "accepted"
         assert candidate["push_count"] == 2
         assert candidate["last_pushed_at"]
+        assert already_pushed_candidate_ids(PROJECT_ID, [candidate_id]) == [candidate_id]

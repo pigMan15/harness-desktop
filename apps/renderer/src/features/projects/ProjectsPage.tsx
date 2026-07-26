@@ -3,13 +3,22 @@ import { MapPin, RefreshCw, Trash2, Wrench } from 'lucide-react'
 import type { ProjectSummary } from '../../app/harness-api'
 import { useWorkspace } from '../layout/WorkspaceContext'
 import { runProjectImport } from './project-import'
+import { useLanguage } from '../settings/LanguageContext'
 
 interface Notice {
   kind: 'info' | 'success' | 'error'
   message: string
 }
 
+function projectHealthHint(project: ProjectSummary): string {
+  if (project.health === 'healthy') return 'Harness metadata is reachable and writable.'
+  if (project.health === 'readonly') return 'Project is readable but not writable from the runtime.'
+  if (project.health === 'degraded') return 'Harness metadata needs repair, relocation, or bootstrap refresh.'
+  return 'Project health is unknown.'
+}
+
 export function ProjectsPage(): React.ReactElement {
+  const { text } = useLanguage()
   const { projects, selectedProjectId, loading, error, refreshProjects, selectProject } = useWorkspace()
   const [notice, setNotice] = useState<Notice>()
   const [importing, setImporting] = useState(false)
@@ -55,8 +64,8 @@ export function ProjectsPage(): React.ReactElement {
       <header className="page-header">
         <h1>Projects</h1>
         <div className="actions">
-          <button className="button icon-button" onClick={() => void refreshProjects()} title="Refresh projects" aria-label="Refresh projects"><RefreshCw size={15} /></button>
-          <button className="button primary" onClick={() => void importProject()} disabled={importing}>{importing ? 'Importing...' : 'Import project'}</button>
+          <button className="button icon-button" onClick={() => void refreshProjects()} title={text('Refresh projects', '刷新项目')} aria-label={text('Refresh projects', '刷新项目')}><RefreshCw size={15} /></button>
+          <button className="button primary" onClick={() => void importProject()} disabled={importing}>{importing ? text('Importing...', '正在导入...') : text('Import project', '导入项目')}</button>
         </div>
       </header>
       {(notice || error) && <div className={`notice ${error || notice?.kind === 'error' ? 'error' : notice?.kind || ''}`}>{error || notice?.message}</div>}
@@ -73,14 +82,14 @@ export function ProjectsPage(): React.ReactElement {
                 <tr key={project.projectId} className={selected ? 'selected' : ''}>
                   <td><strong>{project.name}</strong></td>
                   <td className="mono muted">{project.path}</td>
-                  <td><span className={`badge ${project.health === 'healthy' ? 'success' : 'warning'}`}>{project.health}</span></td>
+                  <td><span className={`badge ${project.health === 'healthy' ? 'success' : 'warning'}`} title={projectHealthHint(project)}>{project.health}</span><div className="table-subtext">{projectHealthHint(project)}</div></td>
                   <td>v{project.protocolVersion}</td>
                   <td style={{ textAlign: 'right' }}>
                     <div className="actions" style={{ justifyContent: 'flex-end' }}>
-                      {project.health !== 'healthy' && <button className="button icon-button" title="Repair project registration" onClick={() => void maintain('repair', project)}><Wrench size={15} /></button>}
-                      <button className="button icon-button" title="Relocate project" onClick={() => void maintain('relocate', project)}><MapPin size={15} /></button>
-                      <button className="button" disabled={selected} onClick={() => void choose(project)}>{selected ? 'Selected' : 'Select'}</button>
-                      <button className="button icon-button danger" title="Unregister project" onClick={() => void maintain('unregister', project)}><Trash2 size={15} /></button>
+                      {project.health !== 'healthy' && <button className="button icon-button" title={text('Repair project registration', '修复项目注册')} onClick={() => void maintain('repair', project)}><Wrench size={15} /></button>}
+                      <button className="button icon-button" title={text('Relocate project', '重新定位项目')} onClick={() => void maintain('relocate', project)}><MapPin size={15} /></button>
+                      <button className="button" disabled={selected} onClick={() => void choose(project)}>{selected ? text('Selected', '已选择') : text('Select', '选择')}</button>
+                      <button className="button icon-button danger" title={text('Unregister project', '取消注册项目')} onClick={() => void maintain('unregister', project)}><Trash2 size={15} /></button>
                     </div>
                   </td>
                 </tr>

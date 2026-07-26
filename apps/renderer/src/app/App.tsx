@@ -13,17 +13,19 @@ import { RecoveryPage } from '../features/recovery/RecoveryPage'
 import { TerminalPage } from '../features/terminal/TerminalPage'
 import { CodexSettingsPage } from '../features/settings/CodexSettingsPage'
 import { LaunchSplash } from '../features/layout/LaunchSplash'
+import { LanguageProvider, useLanguage } from '../features/settings/LanguageContext'
 
 function WorkspaceHeader(): React.ReactElement {
+  const { t } = useLanguage()
   const { status } = useRuntime()
   const { selectedProject, activeRun } = useWorkspace()
   return (
     <header className="workspace-header">
       <div className="context-line">
-        <span className="context-name">{selectedProject?.name || 'No project selected'}</span>
+        <span className="context-name">{selectedProject?.name || t('workspace.noProject')}</span>
         {activeRun && <><span className="context-divider">/</span><span className="context-meta">{activeRun.run_id}</span></>}
       </div>
-      <div className="context-line muted"><span className={`runtime-dot ${status === 'healthy' ? 'healthy' : ''}`} />Runtime {status}</div>
+      <div className="context-line muted"><span className={`runtime-dot ${status === 'healthy' ? 'healthy' : ''}`} />{t('workspace.runtime')} {status}</div>
     </header>
   )
 }
@@ -56,13 +58,13 @@ function WorkspaceRoutes(): React.ReactElement {
 
 export function App(): React.ReactElement {
   return (
-    <>
+    <LanguageProvider>
       <RuntimeProvider>
         <WorkspaceProvider>
           <HashRouter><WorkspaceRoutes /></HashRouter>
         </WorkspaceProvider>
       </RuntimeProvider>
       <LaunchSplash />
-    </>
+    </LanguageProvider>
   )
 }

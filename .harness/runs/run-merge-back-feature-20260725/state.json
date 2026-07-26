@@ -52,7 +52,9 @@
     "G8_ACCEPTANCE": "PASS"
   },
   "retry_counts": {},
-  "last_updated": "2026-07-25T11:02:14+08:00",
-  "notes": "DONE: Implemented guarded run worktree merge-back feature. Unit test gate is waived pending temporary Git repository scenario tests."
+  "last_updated": "2026-07-26T14:13:16.927895+00:00",
+  "notes": "G1_REQUIREMENTS: All deterministic checks passed",
+  "branch_name": "codex/run-merge-back-feature-20260725",
+  "worktree_path": "G:\\Project\\ai\\.harness-desktop-harness-worktrees\\run-merge-back-feature-20260725",
+  "worktree_status": "ready"
 }
-

@@ -243,3 +243,20 @@ def mark_candidates_pushed(project_id: str, candidate_ids: list[int]) -> dict:
         marked_ids.append(candidate_id)
     db.commit()
     return {"candidateIds": marked_ids, "pushedAt": now if marked_ids else None}
+
+
+def already_pushed_candidate_ids(project_id: str, candidate_ids: list[int]) -> list[int]:
+    """Return accepted candidate ids that were already included in an app push."""
+    _ensure_table()
+    selected_ids = sorted({int(candidate_id) for candidate_id in candidate_ids})
+    if not selected_ids:
+        return []
+    placeholders = ",".join("?" for _ in selected_ids)
+    db = get_db()
+    rows = db.execute(
+        f"""SELECT id FROM knowledge_candidates
+            WHERE project_id = ? AND status = 'accepted' AND COALESCE(push_count, 0) > 0
+              AND id IN ({placeholders})""",
+        [project_id, *selected_ids],
+    ).fetchall()
+    return sorted(int(row["id"]) for row in rows)

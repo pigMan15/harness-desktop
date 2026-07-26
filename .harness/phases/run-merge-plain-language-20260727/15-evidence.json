@@ -1,0 +1,15 @@
+{
+  "run_id":"run-merge-plain-language-20260727",
+  "intent":"FEATURE",
+  "risk":"LOW",
+  "changed_files":["apps/renderer/src/features/runs/RunsPage.tsx","apps/renderer/src/features/runs/merge-assistant.ts","apps/renderer/src/features/runs/merge-assistant.test.ts","apps/renderer/src/features/runs/plain-language.test.ts","apps/renderer/src/features/runs/runs.css"],
+  "commands":[
+    {"name":"Renderer 类型检查","command":"pnpm.cmd --filter @harness/renderer typecheck","cwd":"G:\\Project\\ai\\harness-desktop","exit_code":0,"result":"TypeScript 类型检查通过。"},
+    {"name":"Renderer 单元测试","command":"pnpm.cmd --filter @harness/renderer test","cwd":"G:\\Project\\ai\\harness-desktop","exit_code":0,"result":"13 个测试文件、37 项测试全部通过。"},
+    {"name":"Renderer 正式构建","command":"pnpm.cmd --filter @harness/renderer build","cwd":"G:\\Project\\ai\\harness-desktop","exit_code":0,"result":"正式构建通过。"}
+  ],
+  "gates":{"G1_REQUIREMENTS":"PASS","G2_DESIGN":"PASS","G3_COMPILE":"PASS","G4_UNIT_TEST":"PASS","G5_ATDD":"NOT_REQUIRED","G6_EVIDENCE":"PASS","G7_PRERELEASE":"NOT_REQUIRED","G8_ACCEPTANCE":"PASS"},
+  "artifacts":["00-intake.md","01-requirement-review.md","06-implementation-plan.md","11-development.md","12-compile.md","13-unit-test.md","15-evidence.json","18-acceptance-report.md","19-knowledge-promotion.md"],
+  "waivers":[],
+  "residual_risks":["未执行 Electron 窗口人工视觉验收，本地重载后可直接检查。","技术详情仍保留 Git 专业术语，符合仅向高级用户按需展示的设计。"]
+}

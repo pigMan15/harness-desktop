@@ -93,7 +93,7 @@ def execution_project(tmp_path, monkeypatch):
     return import_project(str(root)), root, adapter
 
 
-def test_execution_probe_and_start_use_active_run_context(execution_project):
+def test_execution_probe_and_start_use_active_run_context(execution_project, monkeypatch):
     project, root, adapter = execution_project
     project_id = project["projectId"]
 
@@ -126,11 +126,42 @@ def test_execution_probe_and_start_use_active_run_context(execution_project):
     assert row["project_id"] == project_id
     assert row["run_id"] == "active-execution-run"
     assert row["node_id"] == "DEVELOPMENT"
+    monkeypatch.setattr("harness_runtime.recovery.service._is_process_alive", lambda _pid: False)
     recovered = asyncio.run(_dispatch("recovery.scan", {"projectId": project_id}))
     assert recovered[0]["run_id"] == "active-execution-run"
     assert recovered[0]["worktree_path"] == str(root.resolve())
     assert recovered[0]["branch_name"] == "codex/active-execution-run"
     assert recovered[0]["thread_id"] == "thread-1"
+
+    archived = asyncio.run(
+        _dispatch(
+            "recovery.archive",
+            {"projectId": project_id, "sessionId": "codex-session-1"},
+        )
+    )
+    assert archived == {
+        "sessionId": "codex-session-1",
+        "sessionType": "executor",
+        "status": "archived",
+    }
+    assert asyncio.run(_dispatch("recovery.scan", {"projectId": project_id})) == []
+
+
+def test_claude_managed_execution_uses_provider_adapter(execution_project, monkeypatch):
+    project, _, _ = execution_project
+    adapter = _FakeCodexAdapter()
+    monkeypatch.setattr(api_app, "_claude_adapter", adapter)
+    capability = asyncio.run(
+        _dispatch("execution.probe", {"projectId": project["projectId"], "provider": "claude"})
+    )
+    assert capability["provider"] == "claude"
+    assert capability["available"] is True
+
+    started = asyncio.run(
+        _dispatch("execution.start", {"projectId": project["projectId"], "runId": "active-execution-run", "provider": "claude"})
+    )
+    row = get_db().execute("SELECT executor_type FROM executor_sessions WHERE id = ?", (started["sessionId"],)).fetchone()
+    assert row["executor_type"] == "claude"
 
 
 def test_execution_session_calls_require_owning_project(execution_project):
