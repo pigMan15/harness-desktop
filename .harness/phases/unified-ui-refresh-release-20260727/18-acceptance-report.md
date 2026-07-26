@@ -26,6 +26,9 @@
 - 产物存在性：PASS。
 - 产物 SHA256：PASS，已记录在 `15-evidence.json`。
 - Git 凭据检查：PASS，本机 Git Credential Manager 可提供 GitHub HTTPS 凭据。
+- `git push origin main`：PASS。
+- `git push origin desktop-v0.2.1`：PASS。
+- GitHub REST API 创建/更新 Release 并上传资产：PASS。
 
 ## 门禁
 
@@ -37,4 +40,4 @@
 
 - `bridle` 当前机器执行失败，原因是 PyInstaller 解压 `VCRUNTIME140.dll` 权限被拒绝；本轮已手工保持 state、phase 产物和 runs 快照一致。
 - 构建仍保留项目原有 Vite CJS API 弃用警告、大 chunk 警告和 Electron Forge `DEP0174` 警告，不阻断安装包生成。
-- Release 上传依赖 GitHub API 网络连通性；若 API 临时失败，可使用同一 tag 和本地产物重试上传。
+- Release 已上传成功；若后续需要替换安装包，可复用同一 tag 并覆盖对应资产。

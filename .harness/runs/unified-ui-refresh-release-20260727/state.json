@@ -46,8 +46,8 @@
     "G8_ACCEPTANCE": "NOT_RUN"
   },
   "retry_counts": {},
-  "last_updated": "2026-07-27T02:05:00+08:00",
-  "notes": "0.2.1 发布打包证据、验收报告和知识沉淀已完成；准备推送 main、tag 和 GitHub Release。",
+  "last_updated": "2026-07-27T02:18:00+08:00",
+  "notes": "0.2.1 已提交并推送 main；desktop-v0.2.1 tag 已推送；GitHub Release 已创建并上传 Windows 安装包、nupkg 和 RELEASES。",
   "branch_name": "main",
   "worktree_path": "G:\\Project\\ai\\harness-desktop",
   "worktree_status": "ready"

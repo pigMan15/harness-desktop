@@ -39,6 +39,27 @@
       "cwd": "G:\\Project\\ai\\harness-desktop",
       "exit_code": 0,
       "result": "Git Credential Manager 返回可用 GitHub 凭据；未输出 token。"
+    },
+    {
+      "name": "推送 main",
+      "command": "git push origin main",
+      "cwd": "G:\\Project\\ai\\harness-desktop",
+      "exit_code": 0,
+      "result": "main 已推送到 github.com:pigMan15/harness-desktop.git。"
+    },
+    {
+      "name": "推送发布 tag",
+      "command": "git push origin desktop-v0.2.1",
+      "cwd": "G:\\Project\\ai\\harness-desktop",
+      "exit_code": 0,
+      "result": "desktop-v0.2.1 tag 已推送到 GitHub。"
+    },
+    {
+      "name": "创建 GitHub Release 并上传资产",
+      "command": "GitHub REST API via Git Credential Manager token",
+      "cwd": "G:\\Project\\ai\\harness-desktop",
+      "exit_code": 0,
+      "result": "Release 创建或更新成功，三个资产均已上传：https://github.com/pigMan15/harness-desktop/releases/tag/desktop-v0.2.1。"
     }
   ],
   "assets": [
@@ -64,6 +85,7 @@
     "G8_ACCEPTANCE": "PASS"
   },
   "waivers": [],
+  "release_url": "https://github.com/pigMan15/harness-desktop/releases/tag/desktop-v0.2.1",
   "residual_risks": [
     "bridle 当前机器执行失败，原因是 PyInstaller 解压 VCRUNTIME140.dll 权限被拒绝；本轮使用手工 state 与 phase 产物保持流程一致。",
     "构建保留项目原有 Vite CJS API 弃用警告、大 chunk 警告和 Electron Forge DEP0174 警告。"
